@@ -1,0 +1,434 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Milkdown Crepe — keep; theme is overridden via neutral parent where possible */
+@layer base {
+  :root {
+    --basis-canvas-bg: #141414;
+    --basis-font-sans: "IBM Plex Sans";
+    --basis-font-size: 14px;
+    /* Chat markdown + composer — same as app body */
+    --basis-chat-font-size: 14px;
+    --basis-chat-text: #d0d0d0;
+    --basis-line-height: 1.75;
+    --basis-letter-spacing: 0.01em;
+  }
+
+  html,
+  body,
+  #root {
+    @apply h-full min-h-0;
+  }
+  body {
+    @apply bg-canvas font-sans text-neutral-100 antialiased;
+    font-size: var(--basis-font-size);
+    line-height: var(--basis-line-height);
+    letter-spacing: var(--basis-letter-spacing);
+    font-weight: 400;
+  }
+}
+
+@layer utilities {
+  /* Halftone hero — subtle CRT-style lines (Halftone Studio parity) */
+  .halftone-scanlines {
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 1px,
+      rgba(0, 0, 0, 0.14) 1px,
+      rgba(0, 0, 0, 0.14) 2px
+    );
+  }
+
+  /* Chat / panels — minimal native scrollbar (Chromium + Firefox) */
+  .thin-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(163, 163, 163, 0.32) transparent;
+  }
+  .thin-scrollbar::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  .thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .thin-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgba(163, 163, 163, 0.28);
+    border-radius: 9999px;
+  }
+  .thin-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(163, 163, 163, 0.48);
+  }
+}
+
+@layer components {
+  .markdown-editor-host {
+    @apply flex min-h-0 flex-1 flex-col bg-canvas;
+  }
+
+  .markdown-editor-surface {
+    @apply min-h-0 flex-1 overflow-y-auto;
+  }
+
+  .markdown-editor-surface .milkdown {
+    height: auto;
+    min-height: 100%;
+    color: #d0d0d0;
+    background: transparent;
+    position: relative;
+    z-index: 10;
+    @apply font-sans flex flex-col;
+  }
+
+  .markdown-editor-surface .milkdown .ProseMirror {
+    height: auto;
+    flex: 1;
+    overflow: visible;
+    padding: 1.25rem 2rem 2rem;
+    font-size: 0.96rem;
+    line-height: 1.7;
+    color: #d0d0d0;
+    outline: none;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .markdown-editor-surface .milkdown .ProseMirror > * {
+    order: 3;
+    flex-shrink: 0;
+  }
+
+  .editor-standard-width .milkdown .ProseMirror {
+    align-items: center;
+  }
+
+  /* Normal content should respect standard widths and flex flow */
+  .editor-standard-width .milkdown .ProseMirror > * {
+    max-width: 48rem;
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
+  }
+
+  .editor-standard-width .milkdown .ProseMirror > .editor-frontmatter-row {
+    max-width: 48rem;
+  }
+
+  .markdown-editor-surface .milkdown .ProseMirror h1,
+  .markdown-editor-surface .milkdown .ProseMirror h2,
+  .markdown-editor-surface .milkdown .ProseMirror h3,
+  .markdown-editor-surface .milkdown .ProseMirror h4,
+  .markdown-editor-surface .milkdown .ProseMirror h5,
+  .markdown-editor-surface .milkdown .ProseMirror h6 {
+    color: #e0e0e0;
+    @apply font-sans;
+    font-weight: 600;
+    line-height: 1.35;
+    margin: 1rem 0 0.45rem;
+  }
+
+  .markdown-editor-surface .milkdown .ProseMirror h1 {
+    font-size: 1.35rem;
+  }
+
+  .markdown-editor-surface .milkdown .ProseMirror h2 {
+    font-size: 1.2rem;
+  }
+
+  .markdown-editor-surface .milkdown .ProseMirror h3 {
+    font-size: 1.08rem;
+  }
+
+  .markdown-editor-surface .milkdown .ProseMirror p {
+    margin: 0.15rem 0;
+  }
+
+  .markdown-editor-surface .milkdown .ProseMirror a {
+    color: #d0d0d0;
+    text-decoration-color: #5c5c5c;
+  }
+
+  .markdown-editor-surface .milkdown .ProseMirror code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.84em;
+    background: #212121;
+    border: 1px solid #363636;
+    border-radius: 6px;
+    padding: 0.12em 0.35em;
+  }
+
+  .markdown-editor-surface .milkdown .ProseMirror pre {
+    background: #212121;
+    border: 1px solid #363636;
+    border-radius: 8px;
+    padding: 0.85em 1em;
+    margin: 0.6em 0;
+    overflow-x: auto;
+  }
+
+  .markdown-editor-surface .milkdown .ProseMirror ul,
+  .markdown-editor-surface .milkdown .ProseMirror ol {
+    padding-left: 1.3rem;
+    margin: 0.4rem 0;
+  }
+
+  .title-bar-drag {
+    -webkit-app-region: drag;
+  }
+
+  .title-bar-no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  /* Chat pane — markdown (react-markdown + remark-gfm), scoped prose (palette: text #d0d0d0, borders #363636) */
+  .chat-markdown {
+    @apply font-sans;
+    font-size: var(--basis-chat-font-size);
+    line-height: var(--basis-line-height);
+    letter-spacing: var(--basis-letter-spacing);
+    font-weight: 400;
+    color: #d0d0d0;
+    word-break: break-word;
+  }
+
+  .chat-markdown > *:first-child {
+    margin-top: 0 !important;
+  }
+
+  .chat-markdown > *:last-child {
+    margin-bottom: 0 !important;
+  }
+
+  .chat-markdown p {
+    margin: 0.35em 0;
+    white-space: pre-wrap;
+  }
+
+  .chat-markdown strong,
+  .chat-markdown b {
+    font-weight: 600;
+    color: #e0e0e0;
+  }
+
+  .chat-markdown em,
+  .chat-markdown i {
+    font-style: italic;
+  }
+
+  .chat-markdown strong em,
+  .chat-markdown strong i,
+  .chat-markdown em strong,
+  .chat-markdown i strong {
+    font-weight: 500;
+    font-style: italic;
+  }
+
+  .chat-markdown a {
+    color: #e8e8e8;
+    text-decoration: underline;
+    text-decoration-color: #5c5c5c;
+    text-underline-offset: 4px;
+    transition: color 0.12s ease, text-decoration-color 0.12s ease;
+  }
+
+  .chat-markdown a:hover {
+    color: #ffffff;
+    text-decoration-color: #8f8f8f;
+  }
+
+  .chat-markdown h1,
+  .chat-markdown h2,
+  .chat-markdown h3,
+  .chat-markdown h4,
+  .chat-markdown h5,
+  .chat-markdown h6 {
+    color: #e0e0e0;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.35;
+    margin: 1.1em 0 0.45em;
+  }
+
+  .chat-markdown h1 {
+    font-size: 1.35rem;
+  }
+  .chat-markdown h2 {
+    font-size: 1.2rem;
+  }
+  .chat-markdown h3 {
+    font-size: 1.08rem;
+  }
+  .chat-markdown h4 {
+    font-size: 1rem;
+  }
+  .chat-markdown h5,
+  .chat-markdown h6 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #d0d0d0;
+  }
+
+  .chat-markdown ul,
+  .chat-markdown ol {
+    margin: 0.45em 0;
+    padding-left: 1.35em;
+  }
+
+  .chat-markdown ul {
+    list-style-type: disc;
+  }
+
+  .chat-markdown ol {
+    list-style-type: decimal;
+  }
+
+  .chat-markdown li {
+    margin: 0.2em 0;
+    padding-left: 0.2em;
+  }
+
+  .chat-markdown li::marker {
+    color: #8f8f8f;
+  }
+
+  /* remark-gfm task lists */
+  .chat-markdown ul.contains-task-list {
+    list-style: none;
+    padding-left: 0;
+    margin-left: 0;
+  }
+
+  .chat-markdown li.task-list-item {
+    position: relative;
+    padding-left: 1.65em;
+    list-style: none;
+    margin-left: 0;
+  }
+
+  .chat-markdown li.task-list-item > input[type="checkbox"] {
+    position: absolute;
+    left: 0;
+    top: 0.55em;
+    width: 0.95rem;
+    height: 0.95rem;
+    margin: 0;
+    accent-color: #d0d0d0;
+    cursor: default;
+  }
+
+  .chat-markdown blockquote {
+    margin: 0.65em 0;
+    padding: 0.15em 0 0.15em 1em;
+    border-left: 3px solid #5c5c5c;
+    color: #a8a8a8;
+  }
+
+  .chat-markdown blockquote p {
+    margin: 0.25em 0;
+  }
+
+  .chat-markdown hr {
+    margin: 1.15em 0;
+    border: 0;
+    height: 1px;
+    background: linear-gradient(to right, transparent, #363636, transparent);
+  }
+
+  .chat-markdown del {
+    color: #8f8f8f;
+    text-decoration-color: #363636;
+  }
+
+  .chat-markdown img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 0.5em 0;
+    border: 1px solid #363636;
+  }
+
+  .chat-markdown-table-wrap {
+    margin: 0.65em 0;
+    overflow-x: auto;
+    border-radius: 6px;
+    border: 1px solid #363636;
+    background: transparent;
+  }
+
+  .chat-markdown table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9em;
+    line-height: 1.55;
+  }
+
+  .chat-markdown th,
+  .chat-markdown td {
+    border-bottom: 1px solid #2e2e2e;
+    padding: 0.65em 0.85em;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .chat-markdown tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .chat-markdown th {
+    font-weight: 600;
+    color: #e0e0e0;
+    background: rgba(33, 33, 33, 0.6);
+    border-bottom: 1px solid #363636;
+  }
+
+  .chat-markdown td {
+    color: #d0d0d0;
+    background: transparent;
+  }
+
+  .chat-markdown tbody tr:nth-child(even) td {
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .chat-markdown code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.84em;
+    letter-spacing: 0;
+  }
+
+  .chat-markdown :not(pre) > code {
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #e8e8e8;
+    white-space: break-spaces;
+  }
+
+  .chat-markdown pre {
+    margin: 0.65em 0;
+    padding: 0.85em 1em;
+    overflow-x: auto;
+    border-radius: 8px;
+    background: #212121;
+    border: 1px solid #363636;
+    line-height: 1.55;
+  }
+
+  .chat-markdown pre code {
+    font-size: 0.82em;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #d0d0d0;
+    white-space: pre;
+    display: block;
+  }
+}
+
