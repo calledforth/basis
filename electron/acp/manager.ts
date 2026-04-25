@@ -1,88 +1,14 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn } from "node:child_process";
 import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
 import type { PermissionResponseOutcome, SessionRoute, ThreadBackend } from "../core/types.js";
-
-type AcpEventCategory = "lifecycle" | "stream" | "tool" | "permission" | "session" | "extension" | "error";
-type AcpEventName =
-  | "process_spawned"
-  | "initialized"
-  | "authenticated"
-  | "session_created"
-  | "session_loaded"
-  | "prompt_started"
-  | "prompt_completed"
-  | "user_message_chunk"
-  | "agent_message_chunk"
-  | "agent_thought_chunk"
-  | "plan_update"
-  | "available_commands_update"
-  | "current_mode_update"
-  | "config_option_update"
-  | "session_info_update"
-  | "usage_update"
-  | "tool_call"
-  | "tool_call_update"
-  | "tool_call_content"
-  | "permission_request"
-  | "extension_request"
-  | "extension_notification"
-  | "rpc_error";
-
-type AcpManagerDeps = {
-  emitAcpEvent: (
-    spaceSlug: string,
-    threadId: string,
-    category: AcpEventCategory,
-    event: AcpEventName,
-    data?: unknown,
-    sessionId?: string
-  ) => void;
-  addLog: (entry: { scope: "acp"; level: "info" | "warn" | "error"; message: string; data?: unknown }) => void;
-  onSessionTitleUpdated: (route: SessionRoute, title: string) => void;
-};
-
-type RuntimeState = {
-  backend: ThreadBackend;
-  process: ChildProcessWithoutNullStreams | null;
-  connection: acp.ClientSideConnection | null;
-  initialized: boolean;
-  authenticated: boolean;
-  runtimeGeneration: number;
-  bootstrapPromise: Promise<void> | null;
-  threadToSession: Map<string, string>;
-  sessionToThread: Map<string, SessionBinding>;
-  loadedSessionByThread: Map<string, { sessionId: string; runtimeGeneration: number }>;
-};
-
-type PendingPermissionRequest = {
-  requestId: string;
-  backend: ThreadBackend;
-  spaceSlug: string;
-  threadId: string;
-  sessionId?: string;
-  options: Array<{ optionId?: string; kind?: string; name?: string }>;
-  resolve: (value: { outcome: PermissionResponseOutcome }) => void;
-  timeoutHandle: NodeJS.Timeout;
-};
-
-type SessionBinding = SessionRoute & {
-  backend: ThreadBackend;
-  runtimeGeneration: number;
-};
-
-const PERMISSION_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
-
-function extractSessionId(payload: unknown): string | undefined {
-  const p = payload as any;
-  return p?.sessionId ?? p?._meta?.sessionId ?? p?.toolCall?.sessionId ?? p?.update?.sessionId;
-}
-
-function isAuthRequiredError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  const lower = message.toLowerCase();
-  return lower.includes("auth_required") || (lower.includes("auth") && lower.includes("required"));
-}
+import type {
+  AcpManagerDeps,
+  PendingPermissionRequest,
+  RuntimeState,
+} from "./contracts.js";
+import { PERMISSION_REQUEST_TIMEOUT_MS } from "./contracts.js";
+import { extractSessionId, isAuthRequiredError } from "./utils.js";
 
 export class AcpManager {
   private readonly useShell = process.platform === "win32";

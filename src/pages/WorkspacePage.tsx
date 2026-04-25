@@ -136,11 +136,11 @@ export function WorkspacePage({
     </div>
   ) : null;
 
-  const topIconBtn = "title-bar-no-drag inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-[#bcbcbc] transition-colors hover:bg-[#212121] hover:text-[#e8e8e8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5c5c5c]";
+  const topIconBtn = "title-bar-no-drag inline-flex h-5 w-5 shrink-0 items-center justify-center rounded p-0 leading-none [&_svg]:block text-[#bcbcbc] transition-colors hover:bg-[#212121] hover:text-[#e8e8e8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5c5c5c]";
 
   const homeBtn = (
     <button type="button" className={topIconBtn} title="Back to Home" aria-label="Back to Home" onClick={onOpenHome}>
-      <ChevronLeft className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+      <ChevronLeft className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
     </button>
   );
 
@@ -153,7 +153,7 @@ export function WorkspacePage({
       aria-pressed={chatOpen}
       onClick={() => setChatOpen((o) => !o)}
     >
-      <MessageSquare className="h-4 w-4 shrink-0" strokeWidth={1.5} fill={chatOpen ? "currentColor" : "none"} />
+      <MessageSquare className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} fill={chatOpen ? "currentColor" : "none"} />
     </button>
   );
 
@@ -165,7 +165,7 @@ export function WorkspacePage({
       aria-label="Close Chat Pane"
       onClick={() => setChatOpen(false)}
     >
-      <X className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+      <X className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
     </button>
   );
 
@@ -205,13 +205,13 @@ export function WorkspacePage({
                 onNewChat={(opts) => void onCreateThread(opts)}
                 onThreadsUpdated={onRefreshThreads}
                 headerControlsLeft={
-                  <div className="title-bar-no-drag flex items-center h-full pl-0.5">
+                  <div className="title-bar-no-drag flex items-center h-full pl-0">
                     {homeBtn}
                     {chatToggleBtn}
                   </div>
                 }
                 headerControlsRight={
-                  <div className="title-bar-no-drag flex items-center h-full pr-0.5">
+                  <div className="title-bar-no-drag flex items-center h-full pr-0">
                     {closeChatBtn}
                   </div>
                 }
@@ -228,7 +228,7 @@ export function WorkspacePage({
           <div className="title-bar-drag flex h-8 shrink-0 items-center justify-between border-b border-neutral-800 bg-canvas">
             <div className="flex items-center h-full">
               {!chatOpen && (
-                <div className="title-bar-no-drag flex items-center h-full pl-0.5 pr-1">
+                <div className="title-bar-no-drag flex items-center h-full pl-0 pr-0.5">
                   {homeBtn}
                   {chatToggleBtn}
                 </div>
@@ -262,9 +262,9 @@ export function WorkspacePage({
                 onClick={() => setEditorFullWidth((o) => !o)}
               >
                 {editorFullWidth ? (
-                  <Minimize className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+                  <Minimize className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
                 ) : (
-                  <Maximize className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+                  <Maximize className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
                 )}
               </button>
               <FontSwitcher />

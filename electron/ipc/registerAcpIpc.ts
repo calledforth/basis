@@ -3,63 +3,21 @@ import { AcpManager } from "../acp/manager.js";
 import { ChatDb } from "../core/chatDb.js";
 import { addLog } from "../core/logs.js";
 import { VaultService } from "../vault/service.js";
+import type { EmitAcpEvent } from "./acp/shared.js";
+import {
+  emitSessionBootstrapEvents,
+  ensureThreadSessionAndPersist,
+  toAcpErrorPayload,
+} from "./acp/shared.js";
 
 type RegisterAcpIpcArgs = {
   acpManager: AcpManager;
   chatDb: ChatDb;
   vaultService: VaultService;
-  emitAcpEvent: (
-    spaceSlug: string,
-    threadId: string,
-    category: "lifecycle" | "stream" | "tool" | "permission" | "session" | "extension" | "error",
-    event:
-      | "process_spawned"
-      | "initialized"
-      | "authenticated"
-      | "session_created"
-      | "session_loaded"
-      | "prompt_started"
-      | "prompt_completed"
-      | "user_message_chunk"
-      | "agent_message_chunk"
-      | "agent_thought_chunk"
-      | "plan_update"
-      | "available_commands_update"
-      | "current_mode_update"
-      | "config_option_update"
-      | "session_info_update"
-      | "usage_update"
-      | "tool_call"
-      | "tool_call_update"
-      | "tool_call_content"
-      | "permission_request"
-      | "extension_request"
-      | "extension_notification"
-      | "rpc_error",
-    data?: unknown,
-    sessionId?: string
-  ) => void;
+  emitAcpEvent: EmitAcpEvent;
 };
 
 export function registerAcpIpc(args: RegisterAcpIpcArgs) {
-  const toAcpErrorPayload = (
-    backend: "cursor" | "opencode",
-    error: unknown,
-    source: "bootstrap" | "prompt" | "session/cancel" | "session/set_mode" | "session/set_model" | "session/set_config_option"
-  ) => {
-    const message = error instanceof Error ? error.message : String(error);
-    const lower = message.toLowerCase();
-    const authRelated = lower.includes("auth") || lower.includes("login");
-    if (backend === "opencode" && authRelated) {
-      return {
-        source,
-        message,
-        userMessage: "OpenCode authentication is required. Run `opencode auth login` and retry."
-      };
-    }
-    return { source, message };
-  };
-
   ipcMain.handle("acp:start-session", async (_evt, payload: { spaceSlug: string; threadId: string }) => {
     const { spaceSlug, threadId } = payload;
     addLog({
@@ -72,61 +30,20 @@ export function registerAcpIpc(args: RegisterAcpIpcArgs) {
     const thread = args.chatDb.getThread(spaceSlug, threadId);
     if (!thread) throw new Error("Thread not found");
 
-    const cwd = args.vaultService.getSpacePath(spaceSlug);
-
     try {
-      const ensured = await args.acpManager.ensureThreadSession({
+      const { ensured } = await ensureThreadSessionAndPersist({
+        acpManager: args.acpManager,
+        chatDb: args.chatDb,
+        vaultService: args.vaultService,
         spaceSlug,
         threadId,
-        cwd,
-        backend: thread.backend,
-        existingSessionId: thread.backendSessionId
       });
-      args.chatDb.updateThread(spaceSlug, threadId, {
-        backendSessionId: ensured.sessionId,
-        status: "ready"
+      emitSessionBootstrapEvents({
+        ensured,
+        spaceSlug,
+        threadId,
+        emitAcpEvent: args.emitAcpEvent,
       });
-      if (ensured.state === "created" || ensured.state === "loaded") {
-        args.emitAcpEvent(
-          spaceSlug,
-          threadId,
-          "lifecycle",
-          ensured.state === "created" ? "session_created" : "session_loaded",
-          {
-            sessionId: ensured.sessionId,
-            modes: ensured.initialState?.modes,
-            models: ensured.initialState?.models,
-            configOptions: ensured.initialState?.configOptions
-          },
-          ensured.sessionId
-        );
-        if (ensured.initialState?.modes) {
-          args.emitAcpEvent(
-            spaceSlug,
-            threadId,
-            "session",
-            "current_mode_update",
-            {
-              sessionUpdate: "current_mode_update",
-              ...(ensured.initialState.modes as Record<string, unknown>)
-            },
-            ensured.sessionId
-          );
-        }
-        if (ensured.initialState?.configOptions) {
-          args.emitAcpEvent(
-            spaceSlug,
-            threadId,
-            "session",
-            "config_option_update",
-            {
-              sessionUpdate: "config_option_update",
-              configOptions: ensured.initialState.configOptions
-            },
-            ensured.sessionId
-          );
-        }
-      }
       return { sessionId: ensured.sessionId, created: ensured.state === "created" };
     } catch (error) {
       args.chatDb.updateThread(spaceSlug, threadId, { status: "broken" });
@@ -156,58 +73,19 @@ export function registerAcpIpc(args: RegisterAcpIpcArgs) {
     if (!thread) throw new Error("Thread not found");
 
     try {
-      const ensured = await args.acpManager.ensureThreadSession({
+      const { ensured } = await ensureThreadSessionAndPersist({
+        acpManager: args.acpManager,
+        chatDb: args.chatDb,
+        vaultService: args.vaultService,
         spaceSlug,
         threadId,
-        cwd: args.vaultService.getSpacePath(spaceSlug),
-        backend: thread.backend,
-        existingSessionId: thread.backendSessionId
       });
-      args.chatDb.updateThread(spaceSlug, threadId, {
-        backendSessionId: ensured.sessionId,
-        status: "ready"
+      emitSessionBootstrapEvents({
+        ensured,
+        spaceSlug,
+        threadId,
+        emitAcpEvent: args.emitAcpEvent,
       });
-      if (ensured.state === "created" || ensured.state === "loaded") {
-        args.emitAcpEvent(
-          spaceSlug,
-          threadId,
-          "lifecycle",
-          ensured.state === "created" ? "session_created" : "session_loaded",
-          {
-            sessionId: ensured.sessionId,
-            modes: ensured.initialState?.modes,
-            models: ensured.initialState?.models,
-            configOptions: ensured.initialState?.configOptions
-          },
-          ensured.sessionId
-        );
-        if (ensured.initialState?.modes) {
-          args.emitAcpEvent(
-            spaceSlug,
-            threadId,
-            "session",
-            "current_mode_update",
-            {
-              sessionUpdate: "current_mode_update",
-              ...(ensured.initialState.modes as Record<string, unknown>)
-            },
-            ensured.sessionId
-          );
-        }
-        if (ensured.initialState?.configOptions) {
-          args.emitAcpEvent(
-            spaceSlug,
-            threadId,
-            "session",
-            "config_option_update",
-            {
-              sessionUpdate: "config_option_update",
-              configOptions: ensured.initialState.configOptions
-            },
-            ensured.sessionId
-          );
-        }
-      }
 
       await args.acpManager.sendPromptQueued({
         backend: thread.backend,
@@ -244,19 +122,12 @@ export function registerAcpIpc(args: RegisterAcpIpcArgs) {
     "acp:cancel-prompt",
     async (_evt, payload: { spaceSlug: string; threadId: string }) => {
       const { spaceSlug, threadId } = payload;
-      const thread = args.chatDb.getThread(spaceSlug, threadId);
-      if (!thread) throw new Error("Thread not found");
-
-      const ensured = await args.acpManager.ensureThreadSession({
+      const { thread, ensured } = await ensureThreadSessionAndPersist({
+        acpManager: args.acpManager,
+        chatDb: args.chatDb,
+        vaultService: args.vaultService,
         spaceSlug,
         threadId,
-        cwd: args.vaultService.getSpacePath(spaceSlug),
-        backend: thread.backend,
-        existingSessionId: thread.backendSessionId
-      });
-      args.chatDb.updateThread(spaceSlug, threadId, {
-        backendSessionId: ensured.sessionId,
-        status: "ready"
       });
 
       await args.acpManager.cancelPrompt({
@@ -296,16 +167,12 @@ export function registerAcpIpc(args: RegisterAcpIpcArgs) {
       const thread = args.chatDb.getThread(spaceSlug, threadId);
       if (!thread) throw new Error("Thread not found");
 
-      const ensured = await args.acpManager.ensureThreadSession({
+      const { ensured } = await ensureThreadSessionAndPersist({
+        acpManager: args.acpManager,
+        chatDb: args.chatDb,
+        vaultService: args.vaultService,
         spaceSlug,
         threadId,
-        cwd: args.vaultService.getSpacePath(spaceSlug),
-        backend: thread.backend,
-        existingSessionId: thread.backendSessionId
-      });
-      args.chatDb.updateThread(spaceSlug, threadId, {
-        backendSessionId: ensured.sessionId,
-        status: "ready"
       });
 
       await args.acpManager.setSessionMode({
@@ -333,16 +200,12 @@ export function registerAcpIpc(args: RegisterAcpIpcArgs) {
       const thread = args.chatDb.getThread(spaceSlug, threadId);
       if (!thread) throw new Error("Thread not found");
 
-      const ensured = await args.acpManager.ensureThreadSession({
+      const { ensured } = await ensureThreadSessionAndPersist({
+        acpManager: args.acpManager,
+        chatDb: args.chatDb,
+        vaultService: args.vaultService,
         spaceSlug,
         threadId,
-        cwd: args.vaultService.getSpacePath(spaceSlug),
-        backend: thread.backend,
-        existingSessionId: thread.backendSessionId
-      });
-      args.chatDb.updateThread(spaceSlug, threadId, {
-        backendSessionId: ensured.sessionId,
-        status: "ready"
       });
 
       await args.acpManager.setSessionModel({
@@ -379,16 +242,12 @@ export function registerAcpIpc(args: RegisterAcpIpcArgs) {
       const thread = args.chatDb.getThread(spaceSlug, threadId);
       if (!thread) throw new Error("Thread not found");
 
-      const ensured = await args.acpManager.ensureThreadSession({
+      const { ensured } = await ensureThreadSessionAndPersist({
+        acpManager: args.acpManager,
+        chatDb: args.chatDb,
+        vaultService: args.vaultService,
         spaceSlug,
         threadId,
-        cwd: args.vaultService.getSpacePath(spaceSlug),
-        backend: thread.backend,
-        existingSessionId: thread.backendSessionId
-      });
-      args.chatDb.updateThread(spaceSlug, threadId, {
-        backendSessionId: ensured.sessionId,
-        status: "ready"
       });
 
       await args.acpManager.setSessionConfigOption({
