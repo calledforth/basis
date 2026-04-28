@@ -5,6 +5,8 @@ export type SpaceListItem = {
   created?: string;
   updated?: string;
   lastAccessedAt?: string;
+  fileCount?: number;
+  chatCount?: number;
 };
 
 export type FileNode = {

@@ -59,9 +59,8 @@ function SpaceCard({ space, onOpen, onRename, onDelete }: { space: SpaceListItem
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuOpen]);
 
-  // Mock deterministic counts based on slug to look realistic
-  const fCount = space.slug.length % 12 + 1;
-  const tCount = Math.floor(space.title.length / 3) % 8 + 1;
+  const fCount = space.fileCount ?? 0;
+  const tCount = space.chatCount ?? 0;
   const timeStr = formatRelativeTime(space.lastAccessedAt || space.updated || space.created);
 
   return (
