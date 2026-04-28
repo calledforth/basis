@@ -43,6 +43,10 @@ declare global {
         tree: (spaceSlug: string) => Promise<FileNode[]>;
         read: (spaceSlug: string, relPath: string) => Promise<string>;
         write: (spaceSlug: string, relPath: string, content: string) => Promise<boolean>;
+        createFile: (spaceSlug: string, relPath: string) => Promise<boolean>;
+        mkdir: (spaceSlug: string, relPath: string) => Promise<boolean>;
+        move: (spaceSlug: string, fromRel: string, toRel: string) => Promise<boolean>;
+        remove: (spaceSlug: string, relPath: string) => Promise<boolean>;
       };
       threads: {
         list: (spaceSlug: string) => Promise<ThreadRecord[]>;

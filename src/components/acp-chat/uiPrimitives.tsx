@@ -8,7 +8,7 @@ import {
   Plus,
   History,
   Zap,
-  Send,
+  ArrowUp,
   ChevronDown,
   ChevronRight,
   FileText,
@@ -20,9 +20,9 @@ import { toVaultRelPath } from "../../lib/acpPath";
 import type { ThreadBackend } from "../../types";
 
 export const btnIcon =
-  "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded p-0 leading-none [&_svg]:block text-neutral-500 hover:bg-neutral-900/70 hover:text-neutral-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600 disabled:pointer-events-none disabled:opacity-40";
+  "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded p-0 leading-none [&_svg]:block text-[var(--basis-text-muted)] hover:bg-[var(--basis-surface-hover)] hover:text-[var(--basis-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--basis-border)] disabled:pointer-events-none disabled:opacity-40";
 export const titleBtnIcon =
-  "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded p-0 leading-none [&_svg]:block text-neutral-500 hover:bg-neutral-900/70 hover:text-neutral-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600 disabled:pointer-events-none disabled:opacity-40";
+  "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded p-0 leading-none [&_svg]:block text-[var(--basis-text-muted)] hover:bg-[var(--basis-surface-hover)] hover:text-[var(--basis-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--basis-border)] disabled:pointer-events-none disabled:opacity-40";
 
 /**
  * Horizontal chat gutter shared by list and composer.
@@ -51,7 +51,7 @@ export function IconBolt({ className = "h-3.5 w-3.5" }: { className?: string }) 
 }
 
 export function IconSend({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return <Send className={className} strokeWidth={1.75} aria-hidden />;
+  return <ArrowUp className={className} strokeWidth={1.9} aria-hidden />;
 }
 
 export function IconChevronDown({ className = "h-3 w-3" }: { className?: string }) {
@@ -110,9 +110,19 @@ export function backendLabel(backend: ThreadBackend | undefined): string {
   return backend === "opencode" ? "OpenCode" : "Cursor";
 }
 
-export function MarkdownMessage({ text }: { text: string }) {
+export function MarkdownMessage({
+  text,
+  className,
+}: {
+  text: string;
+  className?: string;
+}) {
   return (
-    <div className="chat-markdown">
+    <div
+      className={
+        className ? `chat-markdown ${className}`.trim() : "chat-markdown"
+      }
+    >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

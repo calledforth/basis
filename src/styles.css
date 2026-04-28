@@ -11,13 +11,52 @@
 @layer base {
   :root {
     --basis-canvas-bg: #141414;
+    --basis-surface: #1c1c1c;
+    --basis-surface-elevated: #212121;
+    --basis-surface-hover: #2a2a2a;
+    --basis-tab-active-bg: #242424;
+    --basis-border: #363636;
+    --basis-border-muted: #2e2e2e;
     --basis-font-sans: "IBM Plex Sans";
     --basis-font-size: 14px;
     /* Chat markdown + composer — same as app body */
     --basis-chat-font-size: 14px;
+    /* Thought stream — matches Tailwind `text-ui-md` / `typographyBodySm` (13px) */
+    --basis-thought-font-size: 13px;
     --basis-chat-text: #d0d0d0;
+    --basis-text: #d0d0d0;
+    --basis-text-strong: #e0e0e0;
+    --basis-text-muted: #8f8f8f;
+    --basis-text-faint: #6b6b6b;
+    --basis-action-bg: #e5e5e5;
+    --basis-action-fg: #111111;
+    --basis-action-hover: #f4f4f4;
+    --basis-scrollbar-track: transparent;
+    --basis-scrollbar-thumb: color-mix(in srgb, var(--basis-text-muted) 45%, transparent);
+    --basis-scrollbar-thumb-hover: color-mix(in srgb, var(--basis-text-muted) 70%, transparent);
     --basis-line-height: 1.75;
     --basis-letter-spacing: 0.01em;
+  }
+
+  html[data-theme="light"] {
+    --basis-canvas-bg: #f8f8f8;
+    --basis-surface: #fcfcfc;
+    --basis-surface-elevated: #f3f3f3;
+    --basis-surface-hover: #f3f3f3;
+    --basis-tab-active-bg: #e7e7e7;
+    --basis-border: #dedede;
+    --basis-border-muted: #e7e7e7;
+    --basis-chat-text: #2d2d2d;
+    --basis-text: #2d2d2d;
+    --basis-text-strong: #000000;
+    --basis-text-muted: #5f5f5f;
+    --basis-text-faint: #747474;
+    --basis-action-bg: #2a2a2a;
+    --basis-action-fg: #f3f3f3;
+    --basis-action-hover: #1f1f1f;
+    --basis-scrollbar-track: transparent;
+    --basis-scrollbar-thumb: #cecece;
+    --basis-scrollbar-thumb-hover: #b8b8b8;
   }
 
   html,
@@ -42,34 +81,61 @@
       to bottom,
       transparent 0,
       transparent 1px,
-      rgba(0, 0, 0, 0.14) 1px,
-      rgba(0, 0, 0, 0.14) 2px
+      color-mix(in srgb, var(--basis-canvas-bg) 20%, transparent) 1px,
+      color-mix(in srgb, var(--basis-canvas-bg) 20%, transparent) 2px
     );
   }
 
   /* Chat / panels — minimal native scrollbar (Chromium + Firefox) */
-  .thin-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(163, 163, 163, 0.32) transparent;
+  @supports selector(::-webkit-scrollbar) {
+    .thin-scrollbar::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .thin-scrollbar::-webkit-scrollbar-track {
+      background: var(--basis-scrollbar-track);
+    }
+    .thin-scrollbar::-webkit-scrollbar-thumb {
+      background-color: var(--basis-scrollbar-thumb);
+      border-radius: 9999px;
+    }
+    .thin-scrollbar::-webkit-scrollbar-thumb:hover {
+      background-color: var(--basis-scrollbar-thumb-hover);
+    }
+    ::-webkit-scrollbar-button,
+    ::-webkit-scrollbar-button:single-button,
+    ::-webkit-scrollbar-button:vertical:decrement,
+    ::-webkit-scrollbar-button:vertical:increment,
+    ::-webkit-scrollbar-button:horizontal:decrement,
+    ::-webkit-scrollbar-button:horizontal:increment {
+      display: none;
+      width: 0;
+      height: 0;
+      background: transparent;
+    }
+    *::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    *::-webkit-scrollbar-track {
+      background: var(--basis-scrollbar-track);
+    }
+    *::-webkit-scrollbar-thumb {
+      background-color: var(--basis-scrollbar-thumb);
+      border-radius: 9999px;
+    }
+    *::-webkit-scrollbar-thumb:hover {
+      background-color: var(--basis-scrollbar-thumb-hover);
+    }
   }
-  .thin-scrollbar::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
-  }
-  .thin-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .thin-scrollbar::-webkit-scrollbar-thumb {
-    background-color: rgba(163, 163, 163, 0.28);
-    border-radius: 9999px;
-  }
-  .thin-scrollbar::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(163, 163, 163, 0.48);
-  }
-  ::-webkit-scrollbar-button {
-    display: none;
-    width: 0;
-    height: 0;
+  @supports not selector(::-webkit-scrollbar) {
+    .thin-scrollbar {
+      scrollbar-width: thin;
+      scrollbar-color: var(--basis-scrollbar-thumb) var(--basis-scrollbar-track);
+    }
+    * {
+      scrollbar-color: var(--basis-scrollbar-thumb) var(--basis-scrollbar-track);
+    }
   }
 }
 
@@ -85,7 +151,7 @@
   .markdown-editor-surface .milkdown {
     height: auto;
     min-height: 100%;
-    color: #d0d0d0;
+    color: var(--basis-text);
     background: transparent;
     position: relative;
     z-index: 10;
@@ -99,7 +165,7 @@
     padding: 1.25rem 2rem 2rem;
     font-size: 0.96rem;
     line-height: 1.7;
-    color: #d0d0d0;
+    color: var(--basis-text);
     outline: none;
     display: flex;
     flex-direction: column;
@@ -132,7 +198,7 @@
   .markdown-editor-surface .milkdown .ProseMirror h4,
   .markdown-editor-surface .milkdown .ProseMirror h5,
   .markdown-editor-surface .milkdown .ProseMirror h6 {
-    color: #e0e0e0;
+    color: var(--basis-text-strong);
     @apply font-sans;
     font-weight: 600;
     line-height: 1.35;
@@ -156,22 +222,22 @@
   }
 
   .markdown-editor-surface .milkdown .ProseMirror a {
-    color: #d0d0d0;
-    text-decoration-color: #5c5c5c;
+    color: var(--basis-text);
+    text-decoration-color: color-mix(in srgb, var(--basis-text-muted) 85%, transparent);
   }
 
   .markdown-editor-surface .milkdown .ProseMirror code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     font-size: 0.84em;
-    background: #212121;
-    border: 1px solid #363636;
+    background: var(--basis-surface-elevated);
+    border: 1px solid var(--basis-border);
     border-radius: 6px;
     padding: 0.12em 0.35em;
   }
 
   .markdown-editor-surface .milkdown .ProseMirror pre {
-    background: #212121;
-    border: 1px solid #363636;
+    background: var(--basis-surface-elevated);
+    border: 1px solid var(--basis-border);
     border-radius: 8px;
     padding: 0.85em 1em;
     margin: 0.6em 0;
@@ -199,7 +265,7 @@
     line-height: var(--basis-line-height);
     letter-spacing: var(--basis-letter-spacing);
     font-weight: 400;
-    color: #d0d0d0;
+    color: var(--basis-text);
     word-break: break-word;
   }
 
@@ -219,7 +285,7 @@
   .chat-markdown strong,
   .chat-markdown b {
     font-weight: 600;
-    color: #e0e0e0;
+    color: var(--basis-text-strong);
   }
 
   .chat-markdown em,
@@ -236,16 +302,16 @@
   }
 
   .chat-markdown a {
-    color: #e8e8e8;
+    color: var(--basis-text-strong);
     text-decoration: underline;
-    text-decoration-color: #5c5c5c;
+    text-decoration-color: color-mix(in srgb, var(--basis-text-muted) 85%, transparent);
     text-underline-offset: 4px;
     transition: color 0.12s ease, text-decoration-color 0.12s ease;
   }
 
   .chat-markdown a:hover {
-    color: #ffffff;
-    text-decoration-color: #8f8f8f;
+    color: var(--basis-text-strong);
+    text-decoration-color: var(--basis-text-muted);
   }
 
   .chat-markdown h1,
@@ -254,7 +320,7 @@
   .chat-markdown h4,
   .chat-markdown h5,
   .chat-markdown h6 {
-    color: #e0e0e0;
+    color: var(--basis-text-strong);
     font-weight: 600;
     letter-spacing: -0.02em;
     line-height: 1.35;
@@ -277,7 +343,7 @@
   .chat-markdown h6 {
     font-size: 0.95rem;
     font-weight: 600;
-    color: #d0d0d0;
+    color: var(--basis-text);
   }
 
   .chat-markdown ul,
@@ -300,7 +366,7 @@
   }
 
   .chat-markdown li::marker {
-    color: #8f8f8f;
+    color: var(--basis-text-muted);
   }
 
   /* remark-gfm task lists */
@@ -325,14 +391,15 @@
     height: 0.95rem;
     margin: 0;
     accent-color: #d0d0d0;
+    accent-color: var(--basis-text-muted);
     cursor: default;
   }
 
   .chat-markdown blockquote {
     margin: 0.65em 0;
     padding: 0.15em 0 0.15em 1em;
-    border-left: 3px solid #5c5c5c;
-    color: #a8a8a8;
+    border-left: 3px solid color-mix(in srgb, var(--basis-text-muted) 70%, transparent);
+    color: var(--basis-text-muted);
   }
 
   .chat-markdown blockquote p {
@@ -343,12 +410,12 @@
     margin: 1.15em 0;
     border: 0;
     height: 1px;
-    background: linear-gradient(to right, transparent, #363636, transparent);
+    background: linear-gradient(to right, transparent, var(--basis-border), transparent);
   }
 
   .chat-markdown del {
-    color: #8f8f8f;
-    text-decoration-color: #363636;
+    color: var(--basis-text-muted);
+    text-decoration-color: var(--basis-border);
   }
 
   .chat-markdown img {
@@ -356,14 +423,14 @@
     height: auto;
     border-radius: 8px;
     margin: 0.5em 0;
-    border: 1px solid #363636;
+    border: 1px solid var(--basis-border);
   }
 
   .chat-markdown-table-wrap {
     margin: 0.65em 0;
     overflow-x: auto;
     border-radius: 6px;
-    border: 1px solid #363636;
+    border: 1px solid var(--basis-border);
     background: transparent;
   }
 
@@ -376,7 +443,7 @@
 
   .chat-markdown th,
   .chat-markdown td {
-    border-bottom: 1px solid #2e2e2e;
+    border-bottom: 1px solid var(--basis-border-muted);
     padding: 0.65em 0.85em;
     text-align: left;
     vertical-align: top;
@@ -388,18 +455,18 @@
 
   .chat-markdown th {
     font-weight: 600;
-    color: #e0e0e0;
-    background: rgba(33, 33, 33, 0.6);
-    border-bottom: 1px solid #363636;
+    color: var(--basis-text-strong);
+    background: color-mix(in srgb, var(--basis-surface-elevated) 70%, transparent);
+    border-bottom: 1px solid var(--basis-border);
   }
 
   .chat-markdown td {
-    color: #d0d0d0;
+    color: var(--basis-text);
     background: transparent;
   }
 
   .chat-markdown tbody tr:nth-child(even) td {
-    background: rgba(255, 255, 255, 0.02);
+    background: color-mix(in srgb, var(--basis-text) 3%, transparent);
   }
 
   .chat-markdown code {
@@ -411,8 +478,8 @@
   .chat-markdown :not(pre) > code {
     padding: 0.15em 0.4em;
     border-radius: 4px;
-    background: rgba(255, 255, 255, 0.08);
-    color: #e8e8e8;
+    background: color-mix(in srgb, var(--basis-text) 10%, transparent);
+    color: var(--basis-text-strong);
     white-space: break-spaces;
   }
 
@@ -422,28 +489,34 @@
     overflow-x: auto;
     border-radius: 6px;
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid color-mix(in srgb, var(--basis-text) 16%, transparent);
     line-height: 1.5;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(163, 163, 163, 0.32) transparent;
+    scrollbar-width: auto;
   }
+  @supports selector(::-webkit-scrollbar) {
+    .chat-markdown pre::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
 
-  .chat-markdown pre::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    .chat-markdown pre::-webkit-scrollbar-track {
+      background: var(--basis-scrollbar-track);
+    }
+
+    .chat-markdown pre::-webkit-scrollbar-thumb {
+      background-color: var(--basis-scrollbar-thumb);
+      border-radius: 9999px;
+    }
+
+    .chat-markdown pre::-webkit-scrollbar-thumb:hover {
+      background-color: var(--basis-scrollbar-thumb-hover);
+    }
   }
-
-  .chat-markdown pre::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .chat-markdown pre::-webkit-scrollbar-thumb {
-    background-color: rgba(163, 163, 163, 0.28);
-    border-radius: 9999px;
-  }
-
-  .chat-markdown pre::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(163, 163, 163, 0.48);
+  @supports not selector(::-webkit-scrollbar) {
+    .chat-markdown pre {
+      scrollbar-width: thin;
+      scrollbar-color: var(--basis-scrollbar-thumb) var(--basis-scrollbar-track);
+    }
   }
 
   .chat-markdown pre code {
@@ -451,9 +524,129 @@
     padding: 0;
     border: 0;
     background: transparent;
-    color: #d0d0d0;
+    color: var(--basis-text);
     white-space: pre;
     display: block;
+  }
+
+  .chat-markdown.chat-markdown--muted {
+    color: var(--basis-text-muted);
+    font-size: var(--basis-thought-font-size);
+  }
+  .chat-markdown.chat-markdown--muted strong,
+  .chat-markdown.chat-markdown--muted b {
+    color: color-mix(in srgb, var(--basis-text-strong) 85%, var(--basis-text));
+  }
+  .chat-markdown.chat-markdown--muted em,
+  .chat-markdown.chat-markdown--muted i {
+    color: var(--basis-text-muted);
+  }
+  .chat-markdown.chat-markdown--muted a {
+    color: var(--basis-text-muted);
+    text-decoration-color: color-mix(in srgb, var(--basis-text-muted) 80%, transparent);
+  }
+  .chat-markdown.chat-markdown--muted a:hover {
+    color: var(--basis-text);
+    text-decoration-color: var(--basis-text-muted);
+  }
+  .chat-markdown.chat-markdown--muted h1,
+  .chat-markdown.chat-markdown--muted h2,
+  .chat-markdown.chat-markdown--muted h3,
+  .chat-markdown.chat-markdown--muted h4,
+  .chat-markdown.chat-markdown--muted h5,
+  .chat-markdown.chat-markdown--muted h6 {
+    color: var(--basis-text-muted);
+  }
+  .chat-markdown.chat-markdown--muted :not(pre) > code {
+    color: var(--basis-text);
+    background: color-mix(in srgb, var(--basis-text) 8%, transparent);
+  }
+  .chat-markdown.chat-markdown--muted pre {
+    border-color: color-mix(in srgb, var(--basis-text) 12%, transparent);
+  }
+  .chat-markdown.chat-markdown--muted pre code {
+    color: var(--basis-text-muted);
+  }
+  .chat-markdown.chat-markdown--muted blockquote {
+    color: var(--basis-text-muted);
+    border-color: color-mix(in srgb, var(--basis-text-muted) 65%, transparent);
+  }
+}
+
+@layer base {
+  html[data-theme="light"] .text-neutral-100 {
+    color: var(--basis-text-strong) !important;
+  }
+  html[data-theme="light"] .text-neutral-200,
+  html[data-theme="light"] .text-neutral-200\/95,
+  html[data-theme="light"] .hover\:text-neutral-200:hover,
+  html[data-theme="light"] .hover\:text-white:hover {
+    color: var(--basis-text) !important;
+  }
+  html[data-theme="light"] .text-neutral-300,
+  html[data-theme="light"] .hover\:text-neutral-300:hover,
+  html[data-theme="light"] .hover\:text-white {
+    color: var(--basis-text) !important;
+  }
+  html[data-theme="light"] .text-neutral-400 {
+    color: var(--basis-text-muted) !important;
+  }
+  html[data-theme="light"] .text-neutral-500,
+  html[data-theme="light"] .text-neutral-600 {
+    color: var(--basis-text-faint) !important;
+  }
+  html[data-theme="light"] .border-neutral-800,
+  html[data-theme="light"] .border-neutral-800\/90,
+  html[data-theme="light"] .border-neutral-700,
+  html[data-theme="light"] .border-neutral-700\/80,
+  html[data-theme="light"] .border-neutral-600,
+  html[data-theme="light"] .border-neutral-600\/80 {
+    border-color: var(--basis-border) !important;
+  }
+  html[data-theme="light"] .bg-neutral-950,
+  html[data-theme="light"] .bg-neutral-900,
+  html[data-theme="light"] .hover\:bg-neutral-900:hover,
+  html[data-theme="light"] .hover\:bg-neutral-900\/70:hover,
+  html[data-theme="light"] .focus-visible\:bg-neutral-800:focus-visible,
+  html[data-theme="light"] .hover\:bg-neutral-800:hover {
+    background-color: var(--basis-surface) !important;
+  }
+  html[data-theme="light"] .bg-neutral-600 {
+    background-color: var(--basis-text-muted) !important;
+  }
+  html[data-theme="light"] .bg-white\/\[0\.1\],
+  html[data-theme="light"] .bg-white\/\[0\.07\],
+  html[data-theme="light"] .bg-white\/\[0\.04\],
+  html[data-theme="light"] .hover\:bg-white\/\[0\.08\]:hover,
+  html[data-theme="light"] .hover\:bg-white\/\[0\.04\]:hover,
+  html[data-theme="light"] .hover\:bg-white\/\[0\.15\]:hover,
+  html[data-theme="light"] .hover\:bg-white:hover {
+    background-color: var(--basis-surface-elevated) !important;
+  }
+}
+
+@layer components {
+  .basis-pierre-file-tree {
+    /* Leave accent out of full grey so `colored` file icons from the tree can read */
+    --trees-accent-override: #60a5fa;
+    --trees-fg-override: var(--basis-text);
+    --trees-bg-override: transparent;
+    --trees-bg-muted-override: var(--basis-tab-active-bg);
+    --trees-selected-bg-override: var(--basis-tab-active-bg);
+    --trees-selected-fg-override: var(--basis-text-strong);
+    --trees-focus-ring-color-override: var(--basis-text-muted);
+    --trees-selected-focused-border-color-override: var(--basis-text-muted);
+    --trees-border-color-override: var(--basis-border);
+    --trees-padding-inline-override: 6px;
+    --trees-item-padding-x-override: 6px;
+    --trees-icon-width-override: 16px;
+    font-size: 12.5px;
+    line-height: 1.35;
+    letter-spacing: 0.01em;
+  }
+
+  .basis-pierre-file-tree [data-type="item"] {
+    border-radius: 4px;
   }
 }
 

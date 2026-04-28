@@ -6,27 +6,27 @@ const thinStroke = { strokeWidth: 0.75, vectorEffect: "non-scaling-stroke" as co
 
 // ─── Shared token: all small square icon buttons in the title bar ───────────
 const titleBarIconBtn =
-  "title-bar-no-drag inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-[#8f8f8f] transition-colors hover:bg-[#212121] hover:text-[#BCBCBC] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5c5c5c]";
+  "title-bar-no-drag inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--basis-text-muted)] transition-colors hover:bg-[var(--basis-surface-hover)] hover:text-[var(--basis-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--basis-border)]";
 
 /** Vault + space label row — same metrics as app body (`--basis-*`) */
 const titleBarBreadcrumbWrap =
-  `inline-flex min-w-0 max-w-full items-center gap-x-1.5 ${typographyBody} text-[#e8e8e8]`;
+  `inline-flex min-w-0 max-w-full items-center gap-x-1.5 ${typographyBody} text-[var(--basis-text)]`;
 
 /** Home control inside the breadcrumb */
 const titleBarHomeBtn =
-  "title-bar-no-drag -ml-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-[#BCBCBC] transition-colors hover:bg-[#212121] hover:text-[#e8e8e8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5c5c5c]";
+  "title-bar-no-drag -ml-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--basis-text)] transition-colors hover:bg-[var(--basis-surface-hover)] hover:text-[var(--basis-text-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--basis-border)]";
 
 // ─── Window control buttons: full bar height, wider than icon buttons ────────
 // Shared base — only hover-bg/color differs between normal and close
 const winCtrlBtnBase =
-  "title-bar-no-drag inline-flex h-8 w-9 shrink-0 items-center justify-center text-white transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5c5c5c]";
+  "title-bar-no-drag inline-flex h-8 w-9 shrink-0 items-center justify-center text-[var(--basis-text-muted)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--basis-border)]";
 
-const winCtrlBtn    = `${winCtrlBtnBase} hover:bg-[#212121]`;
-const winCloseBtn   = `${winCtrlBtnBase} hover:bg-rose-600/95`;
+const winCtrlBtn    = `${winCtrlBtnBase} hover:bg-[var(--basis-tab-active-bg)] hover:text-[var(--basis-text)]`;
+const winCloseBtn   = `${winCtrlBtnBase} hover:bg-rose-600/95 hover:!text-white hover:[&_svg]:!text-white`;
 
 /** Standalone centered title (e.g. vault setup, logs) — matches breadcrumb typography */
 const titleBarTitleText =
-  `pointer-events-none ${typographyBody} text-[#BCBCBC]`;
+  `pointer-events-none ${typographyBody} text-[var(--basis-text)]`;
 
 /**
  * Trailing text button (e.g. Logs).
@@ -34,7 +34,7 @@ const titleBarTitleText =
  * and `rounded` to match all other bar controls (was: rounded-md + hardcoded type values).
  */
 const titleBarTrailingBtn =
-  `title-bar-no-drag inline-flex items-center justify-center rounded px-3 py-1.5 ${typographyBody} text-[#8f8f8f] transition-colors hover:bg-[#212121] hover:text-[#BCBCBC] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5c5c5c]`;
+  `title-bar-no-drag inline-flex items-center justify-center rounded px-3 py-1.5 ${typographyBody} text-[var(--basis-text-muted)] transition-colors hover:bg-[var(--basis-surface-hover)] hover:text-[var(--basis-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--basis-border)]`;
 
 function hasWinApi(): boolean {
   return typeof window !== "undefined" && Boolean(window.basis?.win);

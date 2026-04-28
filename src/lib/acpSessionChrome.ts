@@ -266,6 +266,7 @@ export function deriveSessionChromeState(events: AcpTranslatedEvent[]): SessionC
   let modelSelect: ModelSelectState = null;
   let configControls: SessionConfigControl[] = [];
   let usage: SessionChromeState["usage"];
+  let usageUpdateCount = 0;
 
   for (const e of sorted) {
     if (e.event === "available_commands_update") {
@@ -289,7 +290,22 @@ export function deriveSessionChromeState(events: AcpTranslatedEvent[]): SessionC
     }
 
     if (e.event === "usage_update") {
+      usageUpdateCount += 1;
       usage = parseUsage(e.data);
+    }
+    if (e.event === "prompt_completed") {
+      // no-op
+    }
+
+    const m = asRecord(asRecord(e.data)?.models);
+    if (modelSelect && typeof m?.currentModelId === "string" && m.currentModelId) {
+      const id = m.currentModelId;
+      const match = modelSelect.options.find((o) => o.valueId === id);
+      modelSelect = {
+        name: modelSelect.name,
+        currentLabel: match?.label ?? id,
+        options: modelSelect.options
+      };
     }
   }
 

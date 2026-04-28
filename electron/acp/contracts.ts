@@ -29,6 +29,7 @@ export type AcpEventName =
   | "plan_update"
   | "available_commands_update"
   | "current_mode_update"
+  | "current_model_update"
   | "config_option_update"
   | "session_info_update"
   | "usage_update"

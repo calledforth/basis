@@ -43,6 +43,12 @@ function hslFromParts(parts: string): string {
   return parts;
 }
 
+function token(name: string, fallback: string): string {
+  if (typeof window === "undefined") return fallback;
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
 /**
  * Plasma in the same normalized space as a fixed Studio canvas (e.g. 1280×800):
  * map each screen cell to ref pixels, then scale by min(refW, refH) so blobs stay
@@ -117,10 +123,28 @@ export function HalftoneStudioArt({ className, configOverride }: HalftoneStudioA
     const canvas = canvasRef.current;
     if (!wrap || !canvas) return;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) return;
 
-    const cfg = { ...HALFTONE_STUDIO_CONFIG, ...configOverride };
+    const theme = document.documentElement.dataset.theme;
+    const lightThemeCfg =
+      theme === "light"
+        ? {
+            fg: token("--basis-surface", "#fcfcfc"),
+            bg: token("--basis-text-muted", "#8a8a8a"),
+            contrast: 0.6,
+            brightness: -0.02,
+            cellSize: 7
+          }
+        : {};
+    const darkThemeCfg =
+      theme === "dark"
+        ? {
+            fg: token("--basis-canvas-bg", "#141414"),
+            bg: token("--basis-text-muted", "#8f8f8f")
+          }
+        : {};
+    const cfg = { ...HALFTONE_STUDIO_CONFIG, ...darkThemeCfg, ...lightThemeCfg, ...configOverride };
     /* Studio preview: light dots on dark ground (paper = dot color, ink = canvas fill). */
     const canvasCss = hslFromParts(cfg.fg);
     const dotCss = hslFromParts(cfg.bg);
@@ -186,8 +210,10 @@ export function HalftoneStudioArt({ className, configOverride }: HalftoneStudioA
       const rect = wrap.getBoundingClientRect();
       const wCss = Math.max(1, rect.width);
       const hCss = Math.max(1, rect.height);
-      canvas.width = Math.floor(wCss * dpr);
-      canvas.height = Math.floor(hCss * dpr);
+      const nextW = Math.floor(wCss * dpr);
+      const nextH = Math.floor(hCss * dpr);
+      canvas.width = nextW;
+      canvas.height = nextH;
       canvas.style.width = `${wCss}px`;
       canvas.style.height = `${hCss}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -201,6 +227,12 @@ export function HalftoneStudioArt({ className, configOverride }: HalftoneStudioA
 
     const draw = (now: number) => {
       if (!running) return;
+      if (document.visibilityState !== "visible") {
+        if (!reduceMotionRef.current && !cfg.paused) {
+          rafRef.current = requestAnimationFrame(draw);
+        }
+        return;
+      }
       paint(now);
       if (!reduceMotionRef.current && !cfg.paused) {
         rafRef.current = requestAnimationFrame(draw);
@@ -223,10 +255,15 @@ export function HalftoneStudioArt({ className, configOverride }: HalftoneStudioA
   }, [configOverride]);
 
   return (
-    <div ref={wrapRef} role="img" aria-label="Plasma halftone pattern" className={className}>
+    <div
+      ref={wrapRef}
+      role="img"
+      aria-label="Plasma halftone pattern"
+      className={`isolate [contain:paint] [transform:translateZ(0)] ${className ?? ""}`}
+    >
       <canvas
         ref={canvasRef}
-        className="block h-full w-full [image-rendering:pixelated]"
+        className="block h-full w-full [image-rendering:pixelated] will-change-transform transform-gpu [backface-visibility:hidden]"
         aria-hidden
       />
     </div>

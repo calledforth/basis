@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import path from "node:path";
+const pathPosix = path.posix;
 import matter from "gray-matter";
 import chokidar, { type FSWatcher } from "chokidar";
 import { getSpacesMeta, getVaultPath, setSpaceLastAccessed } from "../core/store.js";
@@ -190,6 +191,101 @@ export class VaultService {
 
   setLastAccessed(slug: string) {
     setSpaceLastAccessed(slug, nowIso());
+  }
+
+  private normalizeSpaceRelPath(rel: string): string {
+    const raw = rel.replaceAll("\\", "/").trim();
+    if (!raw || raw === ".") {
+      throw new Error("Invalid path");
+    }
+    const norm = pathPosix.normalize(raw);
+    if (norm === ".." || norm.startsWith("../") || norm.includes("/../") || pathPosix.isAbsolute(norm)) {
+      throw new Error("Invalid path");
+    }
+    return norm.replace(/\/+$/g, "");
+  }
+
+  private isInsideSpaceRoot(spaceRoot: string, absolutePath: string): boolean {
+    const root = path.resolve(spaceRoot);
+    const abs = path.resolve(absolutePath);
+    return abs === root || abs.startsWith(root + path.sep);
+  }
+
+  async createFile(slug: string, relPath: string) {
+    const rel = this.normalizeSpaceRelPath(relPath);
+    const fullPath = path.join(this.getSpacePath(slug), rel);
+    if (!this.isInsideSpaceRoot(this.getSpacePath(slug), fullPath)) {
+      throw new Error("Path escapes space root");
+    }
+    if (fsSync.existsSync(fullPath)) {
+      throw new Error("A file or folder with that name already exists");
+    }
+    await fs.mkdir(path.dirname(fullPath), { recursive: true });
+    await fs.writeFile(fullPath, "", "utf8");
+  }
+
+  async mkdirInSpace(slug: string, relPath: string) {
+    const rel = this.normalizeSpaceRelPath(relPath);
+    const fullPath = path.join(this.getSpacePath(slug), rel);
+    if (!this.isInsideSpaceRoot(this.getSpacePath(slug), fullPath)) {
+      throw new Error("Path escapes space root");
+    }
+    if (fsSync.existsSync(fullPath)) {
+      if (fsSync.statSync(fullPath).isDirectory()) return;
+      throw new Error("A file already exists with that name");
+    }
+    await fs.mkdir(fullPath, { recursive: true });
+  }
+
+  async movePath(slug: string, fromRel: string, toRel: string) {
+    const from = this.normalizeSpaceRelPath(fromRel);
+    const to = this.normalizeSpaceRelPath(toRel);
+    const spaceRoot = this.getSpacePath(slug);
+    const fromAbs = path.join(spaceRoot, from);
+    const toAbs = path.join(spaceRoot, to);
+    if (!this.isInsideSpaceRoot(spaceRoot, fromAbs) || !this.isInsideSpaceRoot(spaceRoot, toAbs)) {
+      throw new Error("Path escapes space root");
+    }
+    if (from === to) return;
+    if (!fsSync.existsSync(fromAbs)) {
+      throw new Error("Source not found");
+    }
+    if (fsSync.existsSync(toAbs)) {
+      throw new Error("A file or folder already exists at the destination");
+    }
+    const fromStat = await fs.stat(fromAbs);
+    const toParent = path.dirname(toAbs);
+    if (!fsSync.existsSync(toParent)) {
+      await fs.mkdir(toParent, { recursive: true });
+    }
+    if (fromStat.isFile()) {
+      if (fsSync.existsSync(toParent) && !fsSync.statSync(toParent).isDirectory()) {
+        throw new Error("Destination parent is not a directory");
+      }
+    }
+    const fromNorm = path.resolve(fromAbs) + (fromStat.isDirectory() ? path.sep : "");
+    const toNorm = path.resolve(toAbs) + (fromStat.isDirectory() ? path.sep : "");
+    if (fromStat.isDirectory() && toNorm.startsWith(fromNorm)) {
+      throw new Error("Cannot move a folder into itself");
+    }
+    await fs.rename(fromAbs, toAbs);
+  }
+
+  async removePath(slug: string, relPath: string) {
+    const rel = this.normalizeSpaceRelPath(relPath);
+    const fullPath = path.join(this.getSpacePath(slug), rel);
+    if (!this.isInsideSpaceRoot(this.getSpacePath(slug), fullPath)) {
+      throw new Error("Path escapes space root");
+    }
+    if (!fsSync.existsSync(fullPath)) {
+      return;
+    }
+    const st = await fs.stat(fullPath);
+    if (st.isDirectory()) {
+      await fs.rm(fullPath, { recursive: true, force: true });
+    } else {
+      await fs.unlink(fullPath);
+    }
   }
 
   async renameSpace(slug: string, newTitle: string) {

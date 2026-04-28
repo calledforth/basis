@@ -15,7 +15,7 @@ import {
   chatStreamInner,
   chatUserInner,
 } from "../chatComposerStyles";
-import { typographyMonoCaption } from "../../lib/typography";
+import { typographyBodySm, typographyMonoCaption } from "../../lib/typography";
 import {
   IconBolt,
   IconChevronRight,
@@ -28,8 +28,8 @@ import {
 
 /** Borderless “activity stream” rows (tools / meta) — muted verb, base detail */
 const activityRow = "w-full max-w-none px-2 py-px text-ui-base leading-snug";
-const activityMuted = "text-[#a8a8a8]";
-const activityMono = `${typographyMonoCaption} text-[#a8a8a8]`;
+const activityMuted = "text-[var(--basis-text-muted)]";
+const activityMono = `${typographyMonoCaption} text-[var(--basis-text-muted)]`;
 const activityDetailsSummary =
   "flex cursor-pointer list-none items-start gap-1.5 text-ui-base leading-snug [&::-webkit-details-marker]:hidden";
 
@@ -57,11 +57,11 @@ function PermissionInline({
     <div
       className={
         embedded
-          ? "bg-[#1a1a1a] p-2.5"
-          : "mt-2 rounded-md border border-[#363636] bg-[#1a1a1a] p-2"
+          ? "bg-[var(--basis-surface)] p-2.5"
+          : "mt-2 rounded-md border border-[var(--basis-border)] bg-[var(--basis-surface)] p-2"
       }
     >
-      <div className="mb-1.5 text-ui-sm font-medium uppercase tracking-wide text-[#8f8f8f]">
+      <div className="mb-1.5 text-ui-sm font-medium uppercase tracking-wide text-[var(--basis-text-muted)]">
         Permission
       </div>
       <div className="flex flex-wrap gap-2">
@@ -70,7 +70,7 @@ function PermissionInline({
             key={opt.optionId}
             type="button"
             disabled={settled}
-            className="rounded-md border border-[#363636] bg-[#212121] px-2.5 py-1 text-ui-sm font-medium text-[#d0d0d0] hover:bg-[#262626] disabled:opacity-40"
+            className="rounded-md border border-[var(--basis-border)] bg-[var(--basis-surface-elevated)] px-2.5 py-1 text-ui-sm font-medium text-[var(--basis-text)] hover:bg-[var(--basis-surface-hover)] disabled:opacity-40"
             onClick={() =>
               onRespond({ outcome: "selected", optionId: opt.optionId })
             }
@@ -81,7 +81,7 @@ function PermissionInline({
         <button
           type="button"
           disabled={settled}
-          className="rounded-md px-2.5 py-1 text-ui-sm text-[#8f8f8f] hover:text-[#d0d0d0] disabled:opacity-40"
+          className="rounded-md px-2.5 py-1 text-ui-sm text-[var(--basis-text-muted)] hover:text-[var(--basis-text)] disabled:opacity-40"
           onClick={() => onRespond({ outcome: "cancelled" })}
         >
           Cancel
@@ -102,13 +102,13 @@ function ToolHitsPopover({
 }) {
   if (!open) return null;
   return (
-    <div className="absolute left-0 top-full z-30 mt-1 w-[min(100%,28rem)] rounded-lg border border-neutral-800 bg-neutral-950 p-1 shadow-xl">
+    <div className="absolute left-0 top-full z-30 mt-1 w-[min(100%,28rem)] rounded-lg border border-[var(--basis-border)] bg-[var(--basis-surface)] p-1 shadow-xl">
       <div className="thin-scrollbar max-h-56 overflow-y-auto">
         {hits.map((h, idx) => (
           <button
             key={`${h.filename}-${idx}`}
             type="button"
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-ui-sm hover:bg-neutral-900"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-ui-sm hover:bg-[var(--basis-surface-hover)]"
             onClick={() => onPick(h.relPath)}
           >
             <IconFile className="shrink-0 text-neutral-500" />
@@ -169,7 +169,7 @@ function ToolLine({
           className="inline"
           style={{
             background:
-              "linear-gradient(90deg, #4a4a4a 25%, #888 50%, #4a4a4a 75%)",
+              "linear-gradient(90deg, color-mix(in srgb, var(--basis-text-faint) 65%, transparent) 25%, color-mix(in srgb, var(--basis-text-muted) 92%, transparent) 50%, color-mix(in srgb, var(--basis-text-faint) 65%, transparent) 75%)",
             backgroundSize: "200% 100%",
             backgroundClip: "text",
             WebkitBackgroundClip: "text",
@@ -302,10 +302,10 @@ function SingleToolRow({ row }: { row: FoldedToolRow }) {
 
   if (expandable) {
     return (
-      <div className="my-1 w-full max-w-none overflow-hidden rounded-md border border-[#363636]">
+      <div className="my-1 w-full max-w-none overflow-hidden rounded-md border border-[var(--basis-border)]">
         <button
           type="button"
-          className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left hover:bg-[#212121] transition-colors"
+          className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left transition-colors hover:bg-[var(--basis-surface-hover)]"
           onClick={() => setExpanded((v) => !v)}
         >
           {model.uiKind === "terminal" ? (
@@ -322,7 +322,7 @@ function SingleToolRow({ row }: { row: FoldedToolRow }) {
         </button>
         {links ? <div className="px-2.5 pb-1">{links}</div> : null}
         {expanded ? (
-          <div className="border-t border-[#363636]">
+          <div className="border-t border-[var(--basis-border)]">
             {model.uiKind === "edit" ? (
               <div
                 className={`thin-scrollbar max-h-64 overflow-y-auto p-2.5 ${typographyMonoCaption}`}
@@ -340,7 +340,7 @@ function SingleToolRow({ row }: { row: FoldedToolRow }) {
               </div>
             ) : (
               <pre
-                className={`thin-scrollbar max-h-64 overflow-y-auto whitespace-pre-wrap break-words p-2.5 ${typographyMonoCaption} text-[#a8a8a8]`}
+                className={`thin-scrollbar max-h-64 overflow-y-auto whitespace-pre-wrap break-words p-2.5 ${typographyMonoCaption} text-[var(--basis-text-muted)]`}
               >
                 {model.expandedText}
               </pre>
@@ -348,7 +348,7 @@ function SingleToolRow({ row }: { row: FoldedToolRow }) {
           </div>
         ) : null}
         {permission && !permissionSettled ? (
-          <div className="border-t border-[#363636]">
+          <div className="border-t border-[var(--basis-border)]">
             <PermissionInline
               data={permission}
               settled={permissionSettled}
@@ -445,7 +445,7 @@ function SubagentCard({
         </div>
         <button
           type="button"
-          className="shrink-0 rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1 text-ui-xs text-neutral-200 hover:bg-neutral-900"
+          className="shrink-0 rounded-md border border-[var(--basis-border)] bg-[var(--basis-surface)] px-2 py-1 text-ui-xs text-[var(--basis-text)] hover:bg-[var(--basis-surface-hover)]"
           onClick={() => void onOpen()}
         >
           Open
@@ -471,7 +471,7 @@ export function ChatRowView({
   switch (row.type) {
     case "user":
       return (
-        <div className="w-full text-[#C7C7C7]">
+      <div className="w-full text-[var(--basis-text)]">
           <div className={`${chatInputShell} max-w-none`}>
             <div className={chatUserInner}>
               <MarkdownMessage text={row.text} />
@@ -481,7 +481,7 @@ export function ChatRowView({
       );
     case "assistant":
       return (
-        <div className="w-full text-[#C7C7C7]">
+        <div className="w-full text-[var(--basis-text)]">
           <div className="w-full max-w-none">
             <div className={chatStreamInner}>
               <MarkdownMessage text={row.text} />
@@ -495,8 +495,13 @@ export function ChatRowView({
           <summary className={activityDetailsSummary}>
             <span className="text-neutral-400">Thought</span>
           </summary>
-          <div className="thin-scrollbar mt-1 max-h-56 overflow-y-auto whitespace-pre-wrap break-words pl-4 text-ui-sm text-neutral-400">
-            {row.text.trim()}
+          <div
+            className={`thin-scrollbar mt-1 min-h-0 w-full min-w-0 max-h-56 overflow-y-auto overflow-x-hidden overscroll-y-contain ${typographyBodySm}`}
+          >
+            <MarkdownMessage
+              text={row.text.trim()}
+              className="chat-markdown--muted"
+            />
           </div>
         </details>
       );
@@ -535,7 +540,7 @@ export function ChatRowView({
             </span>
           </summary>
           <pre
-            className={`thin-scrollbar max-h-52 overflow-y-auto whitespace-pre-wrap break-words pl-4 pt-0.5 ${activityMono}`}
+            className={`thin-scrollbar max-h-52 overflow-y-auto whitespace-pre-wrap break-words pt-0.5 ${activityMono}`}
           >
             {safeJson(row.data)}
           </pre>
@@ -565,7 +570,7 @@ export function ChatRowView({
             <span className="capitalize text-neutral-400">{row.label}</span>
           </summary>
           <pre
-            className={`thin-scrollbar max-h-48 overflow-y-auto whitespace-pre-wrap break-words pl-4 pt-0.5 ${activityMono}`}
+            className={`thin-scrollbar max-h-48 overflow-y-auto whitespace-pre-wrap break-words pt-0.5 ${activityMono}`}
           >
             {safeJson(row.data)}
           </pre>
@@ -577,7 +582,7 @@ export function ChatRowView({
           <summary className={activityDetailsSummary}>
             <span className="text-ui-base text-rose-400/95">Error</span>
           </summary>
-          <pre className="thin-scrollbar max-h-48 overflow-y-auto whitespace-pre-wrap break-words pl-4 pt-0.5 font-mono text-ui-xs leading-relaxed text-rose-300/90">
+          <pre className="thin-scrollbar max-h-48 overflow-y-auto whitespace-pre-wrap break-words pt-0.5 font-mono text-ui-xs leading-relaxed text-rose-300/90">
             {safeJson(row.data)}
           </pre>
         </details>

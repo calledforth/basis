@@ -73,6 +73,7 @@ export type AcpTranslatedEvent = {
     | "plan_update"
     | "available_commands_update"
     | "current_mode_update"
+    | "current_model_update"
     | "config_option_update"
     | "session_info_update"
     | "usage_update"
@@ -100,12 +101,22 @@ export type AppConfig = {
   vaultPath?: string;
 };
 
+export type WorkspaceLayoutMode = "classic" | "columns";
+
 export type AppPrefs = {
   fontSans?: string;
+  themeMode?: "dark" | "light";
+  /** Workspace shell: chat-left vs tree|chat|editor columns */
+  workspaceLayout?: WorkspaceLayoutMode;
 };
 
 export type SpaceWorkspaceUi = {
   chatOpen?: boolean;
   editorFileTreeOpen?: boolean;
   mainHorizontalLayout?: Record<string, number>;
+  /** Layout for columns mode: tree, chat, editor (percentages) */
+  columnsLayout?: Record<string, number>;
+  lastActiveRelPath?: string;
+  activeRelPath?: string;
+  openRelPaths?: string[];
 };

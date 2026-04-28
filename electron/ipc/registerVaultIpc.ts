@@ -46,4 +46,24 @@ export function registerVaultIpc(args: RegisterVaultIpcArgs) {
     await args.vaultService.writeFile(slug, relPath, content);
     return true;
   });
+
+  ipcMain.handle("space:file-create", async (_evt, slug: string, relPath: string) => {
+    await args.vaultService.createFile(slug, relPath);
+    return true;
+  });
+
+  ipcMain.handle("space:file-mkdir", async (_evt, slug: string, relPath: string) => {
+    await args.vaultService.mkdirInSpace(slug, relPath);
+    return true;
+  });
+
+  ipcMain.handle("space:file-move", async (_evt, slug: string, fromRel: string, toRel: string) => {
+    await args.vaultService.movePath(slug, fromRel, toRel);
+    return true;
+  });
+
+  ipcMain.handle("space:file-remove", async (_evt, slug: string, relPath: string) => {
+    await args.vaultService.removePath(slug, relPath);
+    return true;
+  });
 }

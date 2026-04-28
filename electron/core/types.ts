@@ -1,6 +1,11 @@
+export type WorkspaceLayoutMode = "classic" | "columns";
+
 export type AppPrefs = {
   /** UI font family name (matches --basis-font-sans), e.g. "Inter" */
   fontSans?: string;
+  /** Global app theme mode */
+  themeMode?: "dark" | "light";
+  workspaceLayout?: WorkspaceLayoutMode;
 };
 
 /** Per-space workspace chrome (chat pane, editor sidebar, panel split). */
@@ -9,6 +14,7 @@ export type SpaceWorkspaceUi = {
   editorFileTreeOpen?: boolean;
   /** react-resizable-panels layout: panel id -> percentage 0..100 */
   mainHorizontalLayout?: Record<string, number>;
+  columnsLayout?: Record<string, number>;
 };
 
 export type SpaceMeta = {
@@ -56,6 +62,7 @@ export type AcpEventName =
   | "plan_update"
   | "available_commands_update"
   | "current_mode_update"
+  | "current_model_update"
   | "config_option_update"
   | "session_info_update"
   | "usage_update"

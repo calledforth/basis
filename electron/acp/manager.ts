@@ -655,6 +655,14 @@ export class AcpManager {
         sessionId: args.sessionId,
         modelId: args.modelId
       });
+      this.deps.emitAcpEvent(
+        args.spaceSlug,
+        args.threadId,
+        "session",
+        "current_model_update",
+        { models: { currentModelId: args.modelId } },
+        args.sessionId
+      );
     } catch (error) {
       this.deps.emitAcpEvent(
         args.spaceSlug,

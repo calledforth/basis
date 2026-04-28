@@ -37,7 +37,12 @@ const api = {
     tree: (spaceSlug: string) => ipcRenderer.invoke("space:file-tree", spaceSlug),
     read: (spaceSlug: string, relPath: string) => ipcRenderer.invoke("space:file-read", spaceSlug, relPath),
     write: (spaceSlug: string, relPath: string, content: string) =>
-      ipcRenderer.invoke("space:file-write", spaceSlug, relPath, content)
+      ipcRenderer.invoke("space:file-write", spaceSlug, relPath, content),
+    createFile: (spaceSlug: string, relPath: string) => ipcRenderer.invoke("space:file-create", spaceSlug, relPath),
+    mkdir: (spaceSlug: string, relPath: string) => ipcRenderer.invoke("space:file-mkdir", spaceSlug, relPath),
+    move: (spaceSlug: string, fromRel: string, toRel: string) =>
+      ipcRenderer.invoke("space:file-move", spaceSlug, fromRel, toRel),
+    remove: (spaceSlug: string, relPath: string) => ipcRenderer.invoke("space:file-remove", spaceSlug, relPath)
   },
   threads: {
     list: (spaceSlug: string) => ipcRenderer.invoke("threads:list", spaceSlug),

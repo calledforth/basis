@@ -3,8 +3,8 @@ import { ArrowUp, ChevronsUpDown, ChevronDown, Plus, Hash, MoreHorizontal, Messa
 import type { SpaceListItem } from "../types";
 import { TitleBar, titleBarBreadcrumbWrap } from "../components/TitleBar";
 import { vaultBasename } from "../lib/vaultBasename";
-import { typographyBodySm, typographyLabel, typographyLabelSm, typographyMonoCaption } from "../lib/typography";
-import { HalftoneStudioArt, HALFTONE_HERO_BG_CSS } from "../components/HalftoneStudioArt";
+import { typographyBodySm, typographyLabel } from "../lib/typography";
+import { HalftoneStudioArt } from "../components/HalftoneStudioArt";
 import {
   btnSend,
   chatComposerTextarea,
@@ -12,9 +12,6 @@ import {
   COMPOSER_TEXTAREA_MAX_PX,
   COMPOSER_TEXTAREA_MIN_PX
 } from "../components/chatComposerStyles";
-
-const pillBtn =
-  `inline-flex shrink-0 items-center rounded-md border border-[#363636] bg-[#1a1a1a] px-2.5 py-1 ${typographyLabelSm} text-[#8f8f8f] transition-colors hover:border-neutral-600 hover:text-[#BCBCBC] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-600`;
 
 function IconSend({ className }: { className?: string }) {
   return <ArrowUp className={className} strokeWidth={1.5} />;
@@ -68,19 +65,23 @@ function SpaceCard({ space, onOpen, onRename, onDelete }: { space: SpaceListItem
   const timeStr = formatRelativeTime(space.lastAccessedAt || space.updated || space.created);
 
   return (
-    <div className={`group relative flex min-h-[4.5rem] flex-col justify-between rounded-md border border-[#2a2a2a] bg-[#1a1a1a] p-2 text-left hover:border-[#3a3a3a] hover:bg-[#212121] ${menuOpen ? "z-50" : "z-0"}`}>
-      {/* Click target for the whole card */}
-      <button 
-        type="button" 
-        className="absolute inset-0 z-0 rounded-md focus:outline-none" 
-        onClick={onOpen}
-        aria-label={`Open space ${space.title}`}
-      />
-      
+    <div
+      className={`group relative flex min-h-[4.5rem] cursor-pointer flex-col justify-between rounded-md border border-[var(--basis-border-muted)] bg-[var(--basis-surface)] p-2 text-left hover:border-[var(--basis-border)] hover:bg-[var(--basis-surface-elevated)] ${menuOpen ? "z-50" : "z-0"}`}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open space ${space.title}`}
+      onClick={() => onOpen()}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+    >
       <div className="absolute right-1.5 top-1.5 z-20" ref={menuRef}>
         <button
           type="button"
-          className="flex h-6 w-6 items-center justify-center rounded text-[#8f8f8f] opacity-0 hover:bg-[#2e2e2e] hover:text-[#e8e8e8] group-hover:opacity-100 focus:opacity-100 focus:outline-none"
+          className="flex h-6 w-6 items-center justify-center rounded text-[var(--basis-text-muted)] opacity-0 hover:bg-[var(--basis-surface-hover)] hover:text-[var(--basis-text)] group-hover:opacity-100 focus:opacity-100 focus:outline-none"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -91,10 +92,10 @@ function SpaceCard({ space, onOpen, onRename, onDelete }: { space: SpaceListItem
         </button>
         
         {menuOpen && (
-          <div className="absolute right-0 top-full z-[100] mt-0.5 w-28 overflow-hidden rounded border border-[#363636] bg-[#1c1c1c] p-0.5 shadow-xl shadow-black/80">
+          <div className="absolute right-0 top-full z-[100] mt-0.5 w-28 overflow-hidden rounded border border-[var(--basis-border)] bg-[var(--basis-surface)] p-0.5 shadow-xl shadow-black/30">
             <button
               type="button"
-              className="flex w-full items-center gap-1.5 rounded-sm px-1.5 py-1 text-left text-xs font-medium text-[#BCBCBC] hover:bg-[#2e2e2e] hover:text-[#e8e8e8] focus:outline-none focus:bg-[#2e2e2e]"
+              className="flex w-full items-center gap-1.5 rounded-sm px-1.5 py-1 text-left text-xs font-medium text-[var(--basis-text)] hover:bg-[var(--basis-surface-hover)] hover:text-[var(--basis-text-strong)] focus:outline-none focus:bg-[var(--basis-surface-hover)]"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -102,7 +103,7 @@ function SpaceCard({ space, onOpen, onRename, onDelete }: { space: SpaceListItem
                 onRename();
               }}
             >
-              <PenLine className="h-3.5 w-3.5 text-[#8f8f8f] shrink-0" />
+              <PenLine className="h-3.5 w-3.5 text-[var(--basis-text-muted)] shrink-0" />
               <span className="truncate">Rename</span>
             </button>
             <button
@@ -123,12 +124,12 @@ function SpaceCard({ space, onOpen, onRename, onDelete }: { space: SpaceListItem
       </div>
 
       <div className="relative z-10 pr-6">
-        <h3 className={`truncate ${typographyLabel} text-[#e8e8e8] font-medium tracking-tight leading-snug`}>
+        <h3 className={`truncate ${typographyLabel} text-[var(--basis-text-strong)] font-medium tracking-tight leading-snug`}>
           {space.title}
         </h3>
       </div>
       
-      <div className="relative z-10 mt-2 flex items-center gap-2 text-[11px] font-medium text-[#8f8f8f]">
+      <div className="relative z-10 mt-2 flex items-center gap-2 text-[11px] font-medium text-[var(--basis-text-muted)]">
         <div className="flex items-center gap-1.5" title={`${fCount} files`}>
           <FileText className="h-3.5 w-3.5" />
           <span>{fCount}</span>
@@ -233,25 +234,41 @@ export function SpacesPage({ vaultPath, spaces, onPickVault, onCreateSpace, onOp
         {/* Full-bleed halftone (Halftone Studio config): vignette + fade into composer */}
         <div
           className="relative isolate mb-0 w-full shrink-0 overflow-hidden"
-          style={{ backgroundColor: HALFTONE_HERO_BG_CSS }}
+          style={{ backgroundColor: "var(--basis-surface-elevated)" }}
         >
           <HalftoneStudioArt className="relative z-0 h-60 w-full sm:h-64 md:h-72" />
-          <div className="halftone-scanlines pointer-events-none absolute inset-0 z-[1] opacity-[0.55]" aria-hidden />
+          <div className="halftone-scanlines pointer-events-none absolute inset-0 z-[1] opacity-[0.42]" aria-hidden />
           <div
-            className="pointer-events-none absolute inset-0 z-[1] shadow-[inset_0_0_72px_36px_rgba(0,0,0,0.55),inset_0_14px_28px_-10px_rgba(0,0,0,0.35)]"
+            className="pointer-events-none absolute inset-0 z-[1]"
+            style={{
+              boxShadow:
+                "inset 0 0 72px 36px color-mix(in srgb, var(--basis-canvas-bg) 55%, transparent), inset 0 14px 28px -10px color-mix(in srgb, var(--basis-canvas-bg) 30%, transparent)"
+            }}
             aria-hidden
           />
           <div
-            className="pointer-events-none absolute inset-y-0 left-0 z-[1] w-[min(28%,9rem)] bg-gradient-to-r from-black/45 from-[8%] via-transparent to-transparent"
+            className="pointer-events-none absolute inset-y-0 left-0 z-[1] w-[min(28%,9rem)]"
+            style={{
+              background:
+                "linear-gradient(to right, color-mix(in srgb, var(--basis-canvas-bg) 42%, transparent) 8%, transparent 70%)"
+            }}
             aria-hidden
           />
           <div
-            className="pointer-events-none absolute inset-y-0 right-0 z-[1] w-[min(28%,9rem)] bg-gradient-to-l from-black/45 from-[8%] via-transparent to-transparent"
+            className="pointer-events-none absolute inset-y-0 right-0 z-[1] w-[min(28%,9rem)]"
+            style={{
+              background:
+                "linear-gradient(to left, color-mix(in srgb, var(--basis-canvas-bg) 42%, transparent) 8%, transparent 70%)"
+            }}
             aria-hidden
           />
           {/* Long fade so halftone reads into the composer; sits above composer in z-order */}
           <div
-            className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-36 bg-gradient-to-b from-transparent from-[8%] via-canvas/50 to-canvas sm:h-44 md:h-52"
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-36 sm:h-44 md:h-52"
+            style={{
+              background:
+                "linear-gradient(to bottom, transparent 8%, color-mix(in srgb, var(--basis-canvas-bg) 55%, transparent), var(--basis-canvas-bg))"
+            }}
             aria-hidden
           />
         </div>
@@ -280,7 +297,7 @@ export function SpacesPage({ vaultPath, spaces, onPickVault, onCreateSpace, onOp
                       <button
                         type="button"
                         disabled={isCreating}
-                        className="inline-flex h-6 items-center justify-center gap-1.5 rounded px-2 text-xs font-medium text-[#8f8f8f] transition-colors hover:bg-[#212121] hover:text-[#BCBCBC] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#5c5c5c] disabled:opacity-50"
+                        className="inline-flex h-6 items-center justify-center gap-1.5 rounded px-2 text-xs font-medium text-[var(--basis-text-muted)] transition-colors hover:bg-[var(--basis-surface-elevated)] hover:text-[var(--basis-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--basis-text-muted)] disabled:opacity-50"
                         onClick={() => setSpaceSelectorOpen((o) => !o)}
                       >
                         {selectedSpaceSlug === null ? (
@@ -297,33 +314,33 @@ export function SpacesPage({ vaultPath, spaces, onPickVault, onCreateSpace, onOp
                       </button>
 
                       {spaceSelectorOpen && (
-                        <div className="absolute top-full left-0 mt-1.5 w-56 rounded border border-[#363636] bg-[#1c1c1c] p-1 shadow-xl shadow-black/80 z-50">
+                        <div className="absolute top-full left-0 z-50 mt-1.5 w-56 rounded border border-[var(--basis-border)] bg-[var(--basis-surface)] p-1 shadow-xl shadow-black/30">
                         <button
                           type="button"
-                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs font-medium text-[#e8e8e8] hover:bg-[#2e2e2e]"
+                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs font-medium text-[var(--basis-text)] hover:bg-[var(--basis-surface-hover)]"
                           onClick={() => {
                             setSelectedSpaceSlug(null);
                             setSpaceSelectorOpen(false);
                           }}
                         >
-                          <Plus className="h-4 w-4 text-[#8f8f8f]" />
+                          <Plus className="h-4 w-4 text-[var(--basis-text-muted)]" />
                           New space
                         </button>
                         {spaces.length > 0 && (
                           <>
-                            <div className="my-1 h-px bg-[#363636]" />
+                            <div className="my-1 h-px bg-[var(--basis-border)]" />
                             <div className="thin-scrollbar max-h-48 overflow-y-auto">
                               {spaces.map((s) => (
                                 <button
                                   key={s.slug}
                                   type="button"
-                                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs font-medium text-[#BCBCBC] hover:bg-[#2e2e2e] hover:text-[#e8e8e8]"
+                                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs font-medium text-[var(--basis-text)] hover:bg-[var(--basis-surface-hover)] hover:text-[var(--basis-text-strong)]"
                                   onClick={() => {
                                     setSelectedSpaceSlug(s.slug);
                                     setSpaceSelectorOpen(false);
                                   }}
                                 >
-                                  <Hash className="h-4 w-4 text-[#8f8f8f] shrink-0" />
+                                  <Hash className="h-4 w-4 text-[var(--basis-text-muted)] shrink-0" />
                                   <span className="truncate">{s.title}</span>
                                 </button>
                               ))}

@@ -63,6 +63,33 @@ import {
   titleBtnIcon,
 } from "./acp-chat/uiPrimitives";
 
+function emitDebugLog(args: {
+  location: string;
+  message: string;
+  data: Record<string, unknown>;
+  runId: string;
+  hypothesisId: string;
+}) {
+  // #region agent log
+  fetch("http://127.0.0.1:7282/ingest/67b24953-519f-4630-ad16-3cf215f2ca00", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "29c6b2",
+    },
+    body: JSON.stringify({
+      sessionId: "29c6b2",
+      location: args.location,
+      message: args.message,
+      data: args.data,
+      runId: args.runId,
+      hypothesisId: args.hypothesisId,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+}
+
 type PendingUserMessage = {
   id: string;
   text: string;
@@ -217,6 +244,30 @@ export function AcpChatPane({
     () => foldAcpEvents(events, { debugDetachedPermissions }),
     [events, debugDetachedPermissions],
   );
+  useEffect(() => {
+    const toolPermissionIds = rows
+      .filter(
+        (r): r is Extract<FoldedChatRow, { type: "tool" }> =>
+          r.type === "tool" && Boolean(r.permission),
+      )
+      .map((r) => r.permission?.requestId)
+      .filter((id): id is string => Boolean(id));
+    const stillVisibleIds = toolPermissionIds.filter(
+      (id) => !settledPermissions.has(id),
+    );
+    emitDebugLog({
+      location: "src/components/AcpChatPane.tsx:244",
+      message: "Permission visibility snapshot in pane",
+      data: {
+        rowsCount: rows.length,
+        settledCount: settledPermissions.size,
+        toolPermissionIds,
+        stillVisibleIds,
+      },
+      runId: "initial",
+      hypothesisId: "H5",
+    });
+  }, [rows, settledPermissions]);
   const isPromptActive = useMemo(() => {
     const sorted = [...events].sort((a, b) => {
       if (a.seq !== b.seq) return a.seq - b.seq;
@@ -576,6 +627,8 @@ export function AcpChatPane({
     ? chrome.modelSelect.currentLabel
     : "Model";
   const { base: modelLabel } = formatModelName(rawModelLabel, rawModelLabel);
+  const contextPct = Math.max(0, Math.min(100, chrome.usage?.pct ?? 0));
+  const contextPctDeg = contextPct * 3.6;
 
   const acpUi = useMemo(
     () =>
@@ -612,6 +665,51 @@ export function AcpChatPane({
           <div className="title-bar-no-drag flex h-full items-center">
             <div className="mr-0.5 flex items-center">
               <ConnectionDotIndicator phase={connectionPhase} />
+            </div>
+            <div
+              ref={usageRef}
+              className="relative mr-1 flex h-5 shrink-0 items-center"
+              onMouseEnter={() => setUsageHoverOpen(true)}
+              onMouseLeave={() => setUsageHoverOpen(false)}
+            >
+              <button
+                type="button"
+                className="inline-flex h-5 items-center gap-1 rounded px-1 text-[10px] text-neutral-500 hover:bg-neutral-900/70 hover:text-neutral-200"
+                onClick={() => {
+                  setPlusOpen(true);
+                  setPlusPanel("models");
+                }}
+                aria-label="Context usage"
+              >
+                <span
+                  className="relative h-3 w-3 shrink-0 rounded-full"
+                  style={{
+                    background: `conic-gradient(color-mix(in srgb, var(--basis-text-muted) 92%, transparent) ${contextPctDeg}deg, color-mix(in srgb, var(--basis-text-faint) 70%, transparent) ${contextPctDeg}deg)`,
+                  }}
+                  aria-hidden
+                >
+                  <span className="absolute inset-[2px] rounded-full bg-canvas" />
+                </span>
+                <span>{chrome.usage ? `${chrome.usage.pct.toFixed(1)}% context` : "Context"}</span>
+              </button>
+              {usageHoverOpen ? (
+                <div className="absolute right-0 top-full z-40 mt-1 w-56 rounded-xl border border-[var(--basis-border)] bg-[var(--basis-surface)] p-2 shadow-2xl">
+                  <div className="text-ui-xs text-[var(--basis-text)]">
+                    {modelLabel}
+                  </div>
+                  {chrome.usage ? (
+                    <div className="mt-1.5 text-[10px] text-[var(--basis-text-faint)]">
+                      Context: {chrome.usage.used.toLocaleString()} /{" "}
+                      {chrome.usage.size.toLocaleString()} tokens (
+                      {chrome.usage.pct.toFixed(1)}%)
+                    </div>
+                  ) : (
+                    <div className="mt-1.5 text-[10px] text-[var(--basis-text-faint)]">
+                      No usage telemetry yet
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </div>
             <div
               className="relative inline-flex h-5 shrink-0 items-center"
@@ -742,7 +840,7 @@ export function AcpChatPane({
             ) : (
               <LegendList<FoldedChatRow>
                 className="thin-scrollbar h-full min-h-0 w-full overflow-y-auto"
-                style={{ minHeight: 0 }}
+                style={{ minHeight: 0, scrollbarGutter: "stable" }}
                 contentContainerStyle={{
                   /* Clear composer + h-28 gradient + notice line; avoids last lines clipping under the dock */
                   paddingBottom: 125,
@@ -781,7 +879,7 @@ export function AcpChatPane({
                 initialScrollAtEnd
                 maintainScrollAtEnd
                 maintainScrollAtEndThreshold={0.12}
-                maintainVisibleContentPosition={{ data: true, size: true }}
+                maintainVisibleContentPosition={{ data: true, size: false }}
                 ItemSeparatorComponent={() => (
                   <div className="h-2 shrink-0" aria-hidden />
                 )}
@@ -832,7 +930,7 @@ export function AcpChatPane({
                   }}
                 />
                 <div className="flex items-center justify-between gap-0.5 px-0.5 pb-0.5">
-                  <div className="flex min-w-0 items-center gap-0.5">
+                  <div className="flex h-5 min-w-0 items-center gap-0.5">
                     <div className="relative" ref={plusRef}>
                       <button
                         type="button"
@@ -848,12 +946,12 @@ export function AcpChatPane({
                         <IconPlus />
                       </button>
                       {plusOpen ? (
-                        <div className="absolute bottom-full left-0 z-40 mb-2 w-56 overflow-hidden rounded-xl border border-[#333333] bg-[#1c1c1c] shadow-2xl py-1">
+                        <div className="absolute bottom-full left-0 z-40 mb-2 w-72 overflow-hidden rounded-xl border border-[var(--basis-border)] bg-[var(--basis-surface)] shadow-2xl py-1">
                         {plusPanel === "root" ? (
                           <div className="flex flex-col">
                             <div className="px-2 py-1 mb-1">
                               <input
-                                className="w-full bg-transparent outline-none text-ui-xs text-[#E3E3E3] placeholder-[#767676]"
+                                className="w-full bg-transparent outline-none text-ui-xs text-[var(--basis-text)] placeholder-[var(--basis-text-faint)]"
                                 placeholder="Add agents, context, tools..."
                                 autoFocus
                               />
@@ -861,53 +959,53 @@ export function AcpChatPane({
                             <div className="space-y-px px-1.5">
                               <button
                                 type="button"
-                                className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-ui-xs text-[#E3E3E3] hover:bg-[#2C2C2C] transition-colors"
+                                className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-ui-xs text-[var(--basis-text)] hover:bg-[var(--basis-surface-hover)] transition-colors"
                                 onClick={() => setNotice("Image UI not wired yet.")}
                               >
-                                <ImageIcon className="h-3.5 w-3.5 text-[#A8A8A8]" />
+                                <ImageIcon className="h-3.5 w-3.5 text-[var(--basis-text-muted)]" />
                                 <span>Image</span>
                               </button>
                               <button
                                 type="button"
-                                className="flex w-full items-center justify-between gap-2 rounded-md px-1.5 py-1 text-left text-ui-xs text-[#E3E3E3] hover:bg-[#2C2C2C] transition-colors"
+                                className="flex w-full items-center justify-between gap-2 rounded-md px-1.5 py-1 text-left text-ui-xs text-[var(--basis-text)] hover:bg-[var(--basis-surface-hover)] transition-colors"
                                 onClick={() => setPlusPanel("models")}
                               >
                                 <span className="flex items-center gap-2">
-                                  <Box className="h-3.5 w-3.5 text-[#A8A8A8]" />
+                                  <Box className="h-3.5 w-3.5 text-[var(--basis-text-muted)]" />
                                   <span>Models</span>
                                 </span>
-                                <IconChevronRight className="text-[#767676] h-3 w-3" />
+                                <IconChevronRight className="h-3 w-3 text-[var(--basis-text-faint)]" />
                               </button>
                               <button
                                 type="button"
-                                className="flex w-full items-center justify-between gap-2 rounded-md px-1.5 py-1 text-left text-ui-xs text-[#E3E3E3] hover:bg-[#2C2C2C] transition-colors"
+                                className="flex w-full items-center justify-between gap-2 rounded-md px-1.5 py-1 text-left text-ui-xs text-[var(--basis-text)] hover:bg-[var(--basis-surface-hover)] transition-colors"
                                 onClick={() => setPlusPanel("skills")}
                               >
                                 <span className="flex items-center gap-2">
-                                  <BookOpen className="h-3.5 w-3.5 text-[#A8A8A8]" />
+                                  <BookOpen className="h-3.5 w-3.5 text-[var(--basis-text-muted)]" />
                                   <span>Skills</span>
                                 </span>
-                                <IconChevronRight className="text-[#767676] h-3 w-3" />
+                                <IconChevronRight className="h-3 w-3 text-[var(--basis-text-faint)]" />
                               </button>
                               <button
                                 type="button"
-                                className="flex w-full items-center justify-between gap-2 rounded-md px-1.5 py-1 text-left text-ui-xs text-[#E3E3E3] hover:bg-[#2C2C2C] transition-colors"
+                                className="flex w-full items-center justify-between gap-2 rounded-md px-1.5 py-1 text-left text-ui-xs text-[var(--basis-text)] hover:bg-[var(--basis-surface-hover)] transition-colors"
                                 onClick={() => setPlusPanel("options")}
                               >
                                 <span className="flex items-center gap-2">
-                                  <Plug className="h-3.5 w-3.5 text-[#A8A8A8]" />
+                                  <Plug className="h-3.5 w-3.5 text-[var(--basis-text-muted)]" />
                                   <span>MCP Servers</span>
                                 </span>
-                                <IconChevronRight className="text-[#767676] h-3 w-3" />
+                                <IconChevronRight className="h-3 w-3 text-[var(--basis-text-faint)]" />
                               </button>
                             </div>
                           </div>
                         ) : plusPanel === "skills" ? (
-                          <div className="flex flex-col max-h-[20rem]">
-                            <div className="flex items-center gap-1.5 px-2 py-1 mb-1 border-b border-[#333333]">
+                          <div className="flex max-h-[20rem] flex-col">
+                            <div className="mb-1 flex items-center gap-1.5 border-b border-[var(--basis-border)] px-2 py-1">
                               <button
                                 type="button"
-                                className="text-[#A8A8A8] hover:text-[#E3E3E3] transition-colors"
+                                className="text-[var(--basis-text-muted)] transition-colors hover:text-[var(--basis-text)]"
                                 onClick={() => {
                                   setPlusPanel("root");
                                   setCommandQuery("");
@@ -921,13 +1019,13 @@ export function AcpChatPane({
                                   setCommandQuery(e.target.value)
                                 }
                                 placeholder="Search commands…"
-                                className="w-full bg-transparent outline-none text-ui-xs text-[#E3E3E3] placeholder-[#767676]"
+                                className="w-full bg-transparent text-ui-xs text-[var(--basis-text)] outline-none placeholder-[var(--basis-text-faint)]"
                                 autoFocus
                               />
                             </div>
-                            <div className="thin-scrollbar flex-1 overflow-y-auto space-y-px p-1.5 pt-0">
+                            <div className="thin-scrollbar flex-1 space-y-px overflow-x-hidden overflow-y-auto p-1.5 pt-0">
                               {filteredCommands.length === 0 ? (
-                                <p className="px-2 py-1 text-ui-xs text-[#767676]">
+                                <p className="px-2 py-1 text-ui-xs text-[var(--basis-text-faint)]">
                                   No commands yet
                                 </p>
                               ) : (
@@ -935,7 +1033,7 @@ export function AcpChatPane({
                                   <button
                                     key={c.name}
                                     type="button"
-                                    className="w-full flex flex-col gap-0.5 rounded-md px-1.5 py-1 text-left hover:bg-[#2C2C2C] transition-colors"
+                                    className="flex w-full flex-col gap-0.5 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-[var(--basis-surface-hover)]"
                                     onClick={() => {
                                       setPrompt((prev) =>
                                         prev.trim()
@@ -946,10 +1044,10 @@ export function AcpChatPane({
                                       promptRef.current?.focus();
                                     }}
                                   >
-                                    <div className="text-ui-xs font-medium text-[#E3E3E3]">
+                                    <div className="text-ui-xs font-medium text-[var(--basis-text)]">
                                       {c.name}
                                     </div>
-                                    <div className="text-[10px] text-[#767676] truncate w-full">
+                                    <div className="w-full truncate text-[10px] text-[var(--basis-text-faint)]">
                                       {c.description}
                                     </div>
                                   </button>
@@ -958,22 +1056,22 @@ export function AcpChatPane({
                             </div>
                           </div>
                         ) : plusPanel === "models" ? (
-                          <div className="flex flex-col max-h-[20rem]">
-                            <div className="flex items-center gap-1.5 px-2 py-1 mb-1 border-b border-[#333333]">
+                          <div className="flex max-h-[20rem] flex-col">
+                            <div className="mb-1 flex items-center gap-1.5 border-b border-[var(--basis-border)] px-2 py-1">
                               <button
                                 type="button"
-                                className="text-[#A8A8A8] hover:text-[#E3E3E3] transition-colors"
+                                className="text-[var(--basis-text-muted)] transition-colors hover:text-[var(--basis-text)]"
                                 onClick={() => setPlusPanel("root")}
                               >
                                 <ChevronLeft className="h-3.5 w-3.5" />
                               </button>
                               <input
-                                className="w-full bg-transparent outline-none text-ui-xs text-[#E3E3E3] placeholder-[#767676]"
+                                className="w-full bg-transparent text-ui-xs text-[var(--basis-text)] outline-none placeholder-[var(--basis-text-faint)]"
                                 placeholder="Search models"
                                 autoFocus
                               />
                             </div>
-                            <div className="thin-scrollbar flex-1 overflow-y-auto space-y-px p-1.5 pt-0">
+                            <div className="thin-scrollbar flex-1 space-y-px overflow-x-hidden overflow-y-auto p-1.5 pt-0">
                               {(chrome.modelSelect?.options.length
                                 ? chrome.modelSelect.options
                                 : []
@@ -983,7 +1081,7 @@ export function AcpChatPane({
                                   <button
                                     key={opt.valueId}
                                     type="button"
-                                    className="group flex w-full items-center justify-between rounded-md px-1.5 py-1 text-left hover:bg-[#2C2C2C] transition-colors"
+                                    className="group flex w-full items-center justify-between gap-2 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-[var(--basis-surface-hover)]"
                                     onClick={() => {
                                       void handleSetModel({
                                         modelId: opt.valueId,
@@ -992,14 +1090,14 @@ export function AcpChatPane({
                                       });
                                     }}
                                   >
-                                    <div className="flex items-center gap-1.5 text-ui-xs text-[#E3E3E3]">
-                                      <span>{base}</span>
-                                      {options.thinking === "true" ? <Brain className="h-3 w-3 text-[#A8A8A8]" /> : null}
-                                      {options.fast === "true" ? <span className="text-[10px] text-[#767676]">Fast</span> : null}
-                                      {options.effort ? <span className="text-[10px] text-[#767676] capitalize">{options.effort}</span> : null}
-                                      {options.reasoning ? <span className="text-[10px] text-[#767676] capitalize">{options.reasoning}</span> : null}
+                                    <div className="flex min-w-0 flex-1 items-center gap-1.5 text-ui-xs text-[var(--basis-text)]">
+                                      <span className="truncate">{base}</span>
+                                      {options.thinking === "true" ? <Brain className="h-3 w-3 text-[var(--basis-text-muted)]" /> : null}
+                                      {options.fast === "true" ? <span className="text-[10px] text-[var(--basis-text-faint)]">Fast</span> : null}
+                                      {options.effort ? <span className="text-[10px] capitalize text-[var(--basis-text-faint)]">{options.effort}</span> : null}
+                                      {options.reasoning ? <span className="text-[10px] capitalize text-[var(--basis-text-faint)]">{options.reasoning}</span> : null}
                                     </div>
-                                    <div className="flex items-center gap-1 text-[10px] text-[#767676] opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="flex shrink-0 items-center gap-1 text-[10px] text-[var(--basis-text-faint)] opacity-0 transition-opacity group-hover:opacity-100">
                                       <span>Edit</span>
                                       <IconChevronRight className="h-3 w-3" />
                                     </div>
@@ -1007,7 +1105,7 @@ export function AcpChatPane({
                                 );
                               })}
                               {!chrome.modelSelect?.options.length ? (
-                                <p className="px-2 py-1 text-ui-xs text-[#767676]">
+                                <p className="px-2 py-1 text-ui-xs text-[var(--basis-text-faint)]">
                                   No model list yet
                                 </p>
                               ) : null}
@@ -1015,41 +1113,41 @@ export function AcpChatPane({
                           </div>
                         ) : (
                           <div className="flex flex-col max-h-[20rem]">
-                            <div className="flex items-center gap-1.5 px-2 py-1 mb-1 border-b border-[#333333]">
+                            <div className="mb-1 flex items-center gap-1.5 border-b border-[var(--basis-border)] px-2 py-1">
                               <button
                                 type="button"
-                                className="text-[#A8A8A8] hover:text-[#E3E3E3] transition-colors"
+                                className="text-[var(--basis-text-muted)] transition-colors hover:text-[var(--basis-text)]"
                                 onClick={() => setPlusPanel("root")}
                               >
                                 <ChevronLeft className="h-3.5 w-3.5" />
                               </button>
-                              <span className="text-ui-xs text-[#E3E3E3]">
+                              <span className="text-ui-xs text-[var(--basis-text)]">
                                 Options
                               </span>
                             </div>
                             <div className="thin-scrollbar flex-1 space-y-px overflow-y-auto p-1.5 pt-0">
                                 {extraConfigControls.length === 0 ? (
-                                  <p className="px-2 py-1 text-ui-xs text-[#767676]">
+                                  <p className="px-2 py-1 text-ui-xs text-[var(--basis-text-faint)]">
                                     No extra options yet
                                   </p>
                                 ) : (
                                   extraConfigControls.map((control) => (
                                     <div
                                       key={control.configId ?? control.name}
-                                      className="rounded-md border border-[#333333] px-1.5 py-1.5"
+                                      className="rounded-md border border-[var(--basis-border)] px-1.5 py-1.5"
                                     >
                                       <div className="flex items-center justify-between gap-2">
-                                        <div className="text-[11px] text-[#E3E3E3]">
+                                        <div className="text-[11px] text-[var(--basis-text)]">
                                           {control.name}
                                         </div>
-                                        <div className="text-[9px] text-[#767676] uppercase">
+                                        <div className="text-[9px] uppercase text-[var(--basis-text-faint)]">
                                           {control.category ?? control.type}
                                         </div>
                                       </div>
                                       {control.type === "boolean" ? (
                                         <button
                                           type="button"
-                                          className="mt-1 rounded border border-[#444444] bg-[#222222] px-1.5 py-0.5 text-[10px] text-[#E3E3E3] hover:bg-[#333333]"
+                                          className="mt-1 rounded border border-[var(--basis-border)] bg-[var(--basis-surface-elevated)] px-1.5 py-0.5 text-[10px] text-[var(--basis-text)] hover:bg-[var(--basis-surface-hover)]"
                                           onClick={() =>
                                             void handleSetConfigControl({
                                               configId: control.configId,
@@ -1070,8 +1168,8 @@ export function AcpChatPane({
                                               className={
                                                 opt.valueId ===
                                                 control.currentValue
-                                                  ? "rounded border border-[#555555] bg-[#333333] px-1.5 py-0.5 text-[10px] text-[#FFFFFF]"
-                                                  : "rounded border border-[#333333] bg-[#222222] px-1.5 py-0.5 text-[10px] text-[#A8A8A8] hover:bg-[#333333]"
+                                                  ? "rounded border border-[var(--basis-border)] bg-[var(--basis-surface-hover)] px-1.5 py-0.5 text-[10px] text-[var(--basis-text-strong)]"
+                                                  : "rounded border border-[var(--basis-border)] bg-[var(--basis-surface-elevated)] px-1.5 py-0.5 text-[10px] text-[var(--basis-text-muted)] hover:bg-[var(--basis-surface-hover)]"
                                               }
                                               onClick={() =>
                                                 void handleSetConfigControl({
@@ -1100,7 +1198,7 @@ export function AcpChatPane({
                       <div className="relative" ref={modeMenuRef}>
                         <button
                           type="button"
-                          className={`inline-flex items-center gap-1 rounded-md px-1 py-0.5 ${modeChip.className} hover:opacity-95`}
+                          className={`inline-flex h-5 items-center gap-1 rounded-md px-1 leading-none ${modeChip.className} hover:opacity-95`}
                           aria-expanded={modeMenuOpen}
                           aria-label="Select mode"
                           onClick={() => setModeMenuOpen((v) => !v)}
@@ -1115,7 +1213,7 @@ export function AcpChatPane({
                           <IconChevronDown className="h-3 w-3 opacity-70" />
                         </button>
                         {modeMenuOpen ? (
-                          <div className="absolute bottom-full left-0 z-40 mb-2 w-40 overflow-hidden rounded-xl border border-[#333333] bg-[#1c1c1c] shadow-2xl py-1">
+                          <div className="absolute bottom-full left-0 z-40 mb-2 w-40 overflow-hidden rounded-xl border border-[var(--basis-border)] bg-[var(--basis-surface)] shadow-2xl py-1">
                             <div className="space-y-px px-1.5">
                               {modeMenuOptions.map((m) => (
                                 <button
@@ -1123,8 +1221,8 @@ export function AcpChatPane({
                                   type="button"
                                   className={
                                     m.modeId === chrome.currentModeId
-                                      ? "flex w-full items-center gap-2 rounded-md bg-[#2C2C2C] px-1.5 py-1 text-left text-ui-xs text-[#E3E3E3]"
-                                      : "flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-ui-xs text-[#E3E3E3] hover:bg-[#2C2C2C]"
+                                      ? "flex w-full items-center gap-2 rounded-md bg-[var(--basis-surface-hover)] px-1.5 py-1 text-left text-ui-xs text-[var(--basis-text)]"
+                                      : "flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-ui-xs text-[var(--basis-text)] hover:bg-[var(--basis-surface-hover)]"
                                   }
                                   onClick={() =>
                                     void handleSetMode(m.modeId, m.label)
@@ -1132,7 +1230,7 @@ export function AcpChatPane({
                                 >
                                   {getModeIcon(
                                     m.modeId,
-                                    "h-3.5 w-3.5 text-[#A8A8A8]",
+                                    "h-3.5 w-3.5 text-[var(--basis-text-muted)]",
                                   )}
                                   <span>{m.label}</span>
                                 </button>
@@ -1143,48 +1241,17 @@ export function AcpChatPane({
                       </div>
                     ) : null}
 
-                    <div
-                      ref={usageRef}
-                      className="relative flex min-w-0 items-center gap-2"
-                      onMouseEnter={() => setUsageHoverOpen(true)}
-                      onMouseLeave={() => setUsageHoverOpen(false)}
+                    <button
+                      type="button"
+                      className="flex h-5 min-w-0 items-center gap-1 rounded-md px-1 text-[11px] leading-none text-[var(--basis-text-muted)] hover:bg-[var(--basis-surface-hover)] hover:text-[var(--basis-text)]"
+                      onClick={() => {
+                        setPlusOpen(true);
+                        setPlusPanel("models");
+                      }}
                     >
-                      <button
-                        type="button"
-                        className="flex min-w-0 items-center gap-1 rounded-md px-1 py-0.5 text-[11px] text-[#A8A8A8] hover:bg-[#2C2C2C] hover:text-[#E3E3E3]"
-                        onClick={() => {
-                          setPlusOpen(true);
-                          setPlusPanel("models");
-                        }}
-                      >
-                        <span className="truncate">{modelLabel}</span>
-                        <IconChevronDown className="h-3 w-3 shrink-0 text-[#767676]" />
-                      </button>
-                      {chrome.usage ? (
-                        <span className="shrink-0 text-[10px] text-[#767676]">
-                          {chrome.usage.pct.toFixed(1)}% ctx
-                        </span>
-                      ) : null}
-
-                      {usageHoverOpen ? (
-                        <div className="absolute bottom-full right-0 z-40 mb-2 w-56 rounded-xl border border-[#333333] bg-[#1c1c1c] p-2 shadow-2xl">
-                          <div className="text-ui-xs text-[#E3E3E3]">
-                            {modelLabel}
-                          </div>
-                          {chrome.usage ? (
-                            <div className="mt-1.5 text-[10px] text-[#767676]">
-                              Context: {chrome.usage.used.toLocaleString()} /{" "}
-                              {chrome.usage.size.toLocaleString()} tokens (
-                              {chrome.usage.pct.toFixed(1)}%)
-                            </div>
-                          ) : (
-                            <div className="mt-1.5 text-[10px] text-[#767676]">
-                              No usage telemetry yet
-                            </div>
-                          )}
-                        </div>
-                      ) : null}
-                    </div>
+                      <span className="truncate">{modelLabel}</span>
+                      <IconChevronDown className="h-3 w-3 shrink-0 text-[var(--basis-text-faint)]" />
+                    </button>
                   </div>
 
                   <button

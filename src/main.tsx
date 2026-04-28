@@ -15,11 +15,21 @@ import "@fontsource/plus-jakarta-sans/500.css";
 import "@fontsource/plus-jakarta-sans/600.css";
 import App from "./App";
 import "./styles.css";
+import { Buffer } from "buffer";
+
+if (!(globalThis as unknown as { Buffer?: typeof Buffer }).Buffer) {
+  (globalThis as unknown as { Buffer: typeof Buffer }).Buffer = Buffer;
+}
 
 // Restore typography preference before React renders to prevent FOUT
 const savedFont = localStorage.getItem("basis-font");
 if (savedFont) {
   document.documentElement.style.setProperty("--basis-font-sans", savedFont);
+}
+
+const savedTheme = localStorage.getItem("basis-theme");
+if (savedTheme === "light" || savedTheme === "dark") {
+  document.documentElement.dataset.theme = savedTheme;
 }
 
 const queryClient = new QueryClient();
