@@ -76,7 +76,7 @@ async function bootstrapApp() {
   registerWindowIpc();
   registerPrefsIpc();
   registerVaultIpc({ vaultService });
-  registerSpacesIpc({ vaultService });
+  registerSpacesIpc({ vaultService, chatDb });
   registerThreadsIpc({ chatDb });
   registerAcpIpc({
     acpManager,

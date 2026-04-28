@@ -92,7 +92,8 @@ export class VaultService {
             overviewPath: ovPath,
             created,
             updated,
-            lastAccessedAt: spacesMeta[slug]?.lastAccessedAt
+            lastAccessedAt: spacesMeta[slug]?.lastAccessedAt,
+            fileCount: await this.countFilesInSpace(slug)
           };
         })
     );
@@ -103,6 +104,25 @@ export class VaultService {
       return bAccess - aAccess;
     });
     return spaces;
+  }
+
+  private async countFilesInSpace(slug: string): Promise<number> {
+    const countIn = async (targetDir: string): Promise<number> => {
+      const entries = await fs.readdir(targetDir, { withFileTypes: true });
+      let count = 0;
+      for (const entry of entries) {
+        if (entry.name.startsWith(".")) continue;
+        const entryPath = path.join(targetDir, entry.name);
+        if (entry.isDirectory()) {
+          count += await countIn(entryPath);
+        } else if (entry.isFile()) {
+          count += 1;
+        }
+      }
+      return count;
+    };
+
+    return countIn(this.getSpacePath(slug));
   }
 
   async createSpace(title?: string) {
