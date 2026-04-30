@@ -1,6 +1,10 @@
-import type { AcpPermissionRequestEventData, AcpTranslatedEvent } from "../types";
+import type {
+  AcpPermissionRequestEventData,
+  AcpTranslatedEvent,
+  ThreadBackend,
+} from "../types";
 import { chunkMessageId, extractChunkText } from "./acpExtractText";
-import { toolRowExploreGroupKind } from "./acpToolPresenter";
+import { isTodoWriteToolRow, toolRowExploreGroupKind } from "./acpToolPresenter";
 
 export type ConnectionDot = "idle" | "spawned" | "initialized" | "authenticated" | "error";
 
@@ -17,6 +21,7 @@ export type FoldedToolRow = {
   contentItems: unknown[];
   resultLinks?: string[];
   permission?: AcpPermissionRequestEventData;
+  rawEvents?: Array<{ event: string; data: unknown }>;
 };
 
 export type FoldedToolExploreGroupRow = {
@@ -38,12 +43,20 @@ export type FoldedSubagentRow = {
   raw: unknown;
 };
 
+export type FoldedWorkedGroupRow = {
+  type: "worked_group";
+  id: string;
+  label: string;
+  items: FoldedChatRow[];
+};
+
 export type FoldedChatRow =
   | { type: "user"; id: string; text: string }
   | { type: "assistant"; id: string; text: string }
   | { type: "thinking"; id: string; text: string }
   | FoldedToolRow
   | FoldedToolExploreGroupRow
+  | FoldedWorkedGroupRow
   | { type: "permission"; id: string; data: AcpPermissionRequestEventData }
   | {
       type: "extension";
@@ -108,7 +121,8 @@ function ensureToolRow(
     rawInput: defaults.rawInput,
     rawOutput: defaults.rawOutput,
     locations: defaults.locations,
-    contentItems: Array.isArray(defaults.contentItems) ? [...defaults.contentItems] : []
+    contentItems: Array.isArray(defaults.contentItems) ? [...defaults.contentItems] : [],
+    rawEvents: []
   };
   toolIndex.set(toolCallId, rows.length);
   pushRow(row);
@@ -169,6 +183,11 @@ function mergeToolUpdate(row: FoldedToolRow, data: Record<string, unknown>) {
   }
 }
 
+function appendRawToolEvent(row: FoldedToolRow, event: string, data: unknown) {
+  if (!row.rawEvents) row.rawEvents = [];
+  row.rawEvents.push({ event, data });
+}
+
 function parseSubagentRow(ev: AcpTranslatedEvent, envelope: Record<string, unknown>): FoldedSubagentRow | null {
   const method = typeof envelope.method === "string" ? envelope.method : "";
   if (method !== "cursor/task") return null;
@@ -227,6 +246,73 @@ function parseSubagentRow(ev: AcpTranslatedEvent, envelope: Record<string, unkno
   };
 }
 
+function mergeAllTodoWritesInFlatList(rows: FoldedChatRow[]): FoldedChatRow[] {
+  const idxs: number[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.type === "tool" && isTodoWriteToolRow(r as FoldedToolRow)) idxs.push(i);
+  }
+  if (idxs.length <= 1) return rows;
+
+  const firstIdx = idxs[0]!;
+  const firstTodo = rows[firstIdx] as FoldedToolRow;
+  let latest = firstTodo;
+  const mergedRaw: NonNullable<FoldedToolRow["rawEvents"]> = [];
+  for (const i of idxs) {
+    const t = rows[i] as FoldedToolRow;
+    if (Array.isArray(t.rawEvents)) mergedRaw.push(...t.rawEvents);
+    latest = t;
+  }
+
+  const merged: FoldedToolRow = {
+    ...latest,
+    id: `todowrite:${firstTodo.toolCallId}`,
+    toolCallId: firstTodo.toolCallId,
+    rawEvents: mergedRaw.length ? mergedRaw : latest.rawEvents,
+  };
+
+  const skip = new Set(idxs);
+  const out: FoldedChatRow[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    if (skip.has(i)) {
+      if (i === firstIdx) out.push(merged);
+      continue;
+    }
+    out.push(rows[i]!);
+  }
+  return out;
+}
+
+function normalizeTodoWritesInSubtree(rows: FoldedChatRow[]): FoldedChatRow[] {
+  const mapped = rows.map((r): FoldedChatRow => {
+    if (r.type === "worked_group") {
+      return { ...r, items: normalizeTodoWritesInSubtree(r.items) };
+    }
+    return r;
+  });
+  return mergeAllTodoWritesInFlatList(mapped);
+}
+
+function mergeTodoWritesByUserTurn(rows: FoldedChatRow[]): FoldedChatRow[] {
+  const out: FoldedChatRow[] = [];
+  let seg: FoldedChatRow[] = [];
+  const flush = () => {
+    if (!seg.length) return;
+    out.push(...normalizeTodoWritesInSubtree(seg));
+    seg = [];
+  };
+  for (const r of rows) {
+    if (r.type === "user") {
+      flush();
+      out.push(r);
+    } else {
+      seg.push(r);
+    }
+  }
+  flush();
+  return out;
+}
+
 function foldExploreGroups(rows: FoldedChatRow[]): FoldedChatRow[] {
   const out: FoldedChatRow[] = [];
 
@@ -272,6 +358,74 @@ function foldExploreGroups(rows: FoldedChatRow[]): FoldedChatRow[] {
 
   flush();
   return out;
+}
+
+function formatWorkedDurationLabel(ms: number): string {
+  const minutes = Math.floor(ms / 60000);
+  if (minutes <= 0) return "Worked for <1 min";
+  return `Worked for ${minutes} min${minutes === 1 ? "" : "s"}`;
+}
+
+function foldLatestWorkedGroup(
+  rows: FoldedChatRow[],
+  events: AcpTranslatedEvent[],
+): FoldedChatRow[] {
+  if (!rows.length || !events.length) return rows;
+  const sorted = sortEventsChrono(events);
+  let openStart: AcpTranslatedEvent | undefined;
+  let lastCompletedStart: AcpTranslatedEvent | undefined;
+  let lastCompletedEnd: AcpTranslatedEvent | undefined;
+  for (const ev of sorted) {
+    if (ev.event === "prompt_started") {
+      openStart = ev;
+      continue;
+    }
+    if (ev.event === "prompt_completed" && openStart) {
+      lastCompletedStart = openStart;
+      lastCompletedEnd = ev;
+      openStart = undefined;
+    }
+  }
+  if (!lastCompletedStart || !lastCompletedEnd) return rows;
+
+  const startMs = Date.parse(lastCompletedStart.at);
+  const endMs = Date.parse(lastCompletedEnd.at);
+  const durMs =
+    Number.isFinite(startMs) && Number.isFinite(endMs) && endMs >= startMs
+      ? endMs - startMs
+      : 0;
+  const label = formatWorkedDurationLabel(durMs);
+
+  const lastAssistantIdx = [...rows]
+    .map((r, i) => ({ r, i }))
+    .reverse()
+    .find((x) => x.r.type === "assistant")?.i;
+  if (lastAssistantIdx === undefined) return rows;
+
+  const lastUserBeforeAssistantIdx = [...rows]
+    .map((r, i) => ({ r, i }))
+    .filter((x) => x.i < lastAssistantIdx && x.r.type === "user")
+    .pop()?.i;
+  const startIdx = (lastUserBeforeAssistantIdx ?? -1) + 1;
+  const endIdx = lastAssistantIdx;
+  if (startIdx >= endIdx) return rows;
+
+  const candidate = rows.slice(startIdx, endIdx);
+  const items = candidate.filter((r) => r.type !== "user" && r.type !== "assistant");
+  if (!items.length) return rows;
+  const keeps = candidate.filter((r) => r.type === "user" || r.type === "assistant");
+
+  return [
+    ...rows.slice(0, startIdx),
+    ...keeps,
+    {
+      type: "worked_group",
+      id: `worked:${lastCompletedEnd.id}`,
+      label,
+      items,
+    },
+    ...rows.slice(endIdx),
+  ];
 }
 
 function isSearchTitle(title: string): boolean {
@@ -334,8 +488,15 @@ function normalizePermission(data: unknown, fallbackId: string): AcpPermissionRe
 
 const rowKey = (type: FoldedChatRow["type"], id: string) => `${type}:${id}`;
 
-export function foldAcpEvents(events: AcpTranslatedEvent[], opts?: { debugDetachedPermissions?: boolean }): FoldedChatRow[] {
+export type FoldAcpEventsOpts = {
+  debugDetachedPermissions?: boolean;
+  /** OpenCode emits plan-shaped `plan_update` payloads for todo sync; skip those rows. */
+  backend?: ThreadBackend;
+};
+
+export function foldAcpEvents(events: AcpTranslatedEvent[], opts?: FoldAcpEventsOpts): FoldedChatRow[] {
   const debugDetachedPermissions = Boolean(opts?.debugDetachedPermissions);
+  const backend = opts?.backend;
   const sorted = sortEventsChrono(events);
   const rows: FoldedChatRow[] = [];
   const rowIndexByKey = new Map<string, FoldedChatRow>();
@@ -453,6 +614,7 @@ export function foldAcpEvents(events: AcpTranslatedEvent[], opts?: { debugDetach
         breakAssistantRun();
         const toolCallId = typeof d.toolCallId === "string" ? d.toolCallId : ev.id;
         const row = ensureToolRow(rows, pushRow, toolIndex, toolCallId, { title: "Tool call" });
+        appendRawToolEvent(row, ev.event, data);
         mergeToolUpdate(row, d);
         break;
       }
@@ -463,6 +625,7 @@ export function foldAcpEvents(events: AcpTranslatedEvent[], opts?: { debugDetach
         const toolCallId = typeof d.toolCallId === "string" ? d.toolCallId : "";
         if (!toolCallId) break;
         const row = ensureToolRow(rows, pushRow, toolIndex, toolCallId, { title: "Tool call" });
+        appendRawToolEvent(row, ev.event, data);
         mergeToolUpdate(row, d);
         break;
       }
@@ -473,6 +636,7 @@ export function foldAcpEvents(events: AcpTranslatedEvent[], opts?: { debugDetach
         const toolCallId = typeof d.toolCallId === "string" ? d.toolCallId : "";
         if (!toolCallId) break;
         const row = ensureToolRow(rows, pushRow, toolIndex, toolCallId, { title: "Tool call" });
+        appendRawToolEvent(row, ev.event, data);
         if ("item" in d) row.contentItems.push(d.item);
         const urls = extractToolUrls(d);
         if (urls.length) {
@@ -485,7 +649,6 @@ export function foldAcpEvents(events: AcpTranslatedEvent[], opts?: { debugDetach
         breakAssistantRun();
         const norm = normalizePermission(data, ev.id);
         if (!norm) break;
-
         const tc = norm.toolCall && typeof norm.toolCall === "object" ? (norm.toolCall as Record<string, unknown>) : null;
         const toolCallId = tc && typeof tc.toolCallId === "string" ? tc.toolCallId : "";
         if (!toolCallId) {
@@ -521,6 +684,7 @@ export function foldAcpEvents(events: AcpTranslatedEvent[], opts?: { debugDetach
         break;
       }
       case "plan_update": {
+        if (backend === "opencode") break;
         flushThinkingNow();
         breakAssistantRun();
         pushRow({ type: "plan", id: ev.id, data });
@@ -550,5 +714,7 @@ export function foldAcpEvents(events: AcpTranslatedEvent[], opts?: { debugDetach
     pushRow({ type: "thinking", id: thinkingStartEventId || makeId(), text: thinkingBuf });
   }
   flushPendingPrompt();
-  return foldExploreGroups(rows);
+  const explored = foldExploreGroups(rows);
+  const worked = foldLatestWorkedGroup(explored, sorted);
+  return mergeTodoWritesByUserTurn(worked);
 }

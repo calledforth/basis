@@ -1,11 +1,12 @@
 import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
-import type { AcpPermissionResponseOutcome } from "../types";
+import type { AcpPermissionResponseOutcome, ThreadBackend } from "../types";
 
 export const ACP_CHAT_DISMISS_POPOVERS_EVENT = "basis:acp-chat-dismiss-popovers";
 
 export type AcpChatUiContextValue = {
   spaceRoot: string;
+  backend: ThreadBackend;
   onOpenFile: (relPath: string) => void;
   settledPermissions: Set<string>;
   onPermissionRespond: (requestId: string, outcome: AcpPermissionResponseOutcome) => Promise<void>;

@@ -63,33 +63,6 @@ import {
   titleBtnIcon,
 } from "./acp-chat/uiPrimitives";
 
-function emitDebugLog(args: {
-  location: string;
-  message: string;
-  data: Record<string, unknown>;
-  runId: string;
-  hypothesisId: string;
-}) {
-  // #region agent log
-  fetch("http://127.0.0.1:7282/ingest/67b24953-519f-4630-ad16-3cf215f2ca00", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "29c6b2",
-    },
-    body: JSON.stringify({
-      sessionId: "29c6b2",
-      location: args.location,
-      message: args.message,
-      data: args.data,
-      runId: args.runId,
-      hypothesisId: args.hypothesisId,
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-}
-
 type PendingUserMessage = {
   id: string;
   text: string;
@@ -241,33 +214,13 @@ export function AcpChatPane({
   }, [spaceSlug, threadId]);
 
   const rows = useMemo(
-    () => foldAcpEvents(events, { debugDetachedPermissions }),
-    [events, debugDetachedPermissions],
+    () =>
+      foldAcpEvents(events, {
+        debugDetachedPermissions,
+        backend: activeThread?.backend,
+      }),
+    [events, debugDetachedPermissions, activeThread?.backend],
   );
-  useEffect(() => {
-    const toolPermissionIds = rows
-      .filter(
-        (r): r is Extract<FoldedChatRow, { type: "tool" }> =>
-          r.type === "tool" && Boolean(r.permission),
-      )
-      .map((r) => r.permission?.requestId)
-      .filter((id): id is string => Boolean(id));
-    const stillVisibleIds = toolPermissionIds.filter(
-      (id) => !settledPermissions.has(id),
-    );
-    emitDebugLog({
-      location: "src/components/AcpChatPane.tsx:244",
-      message: "Permission visibility snapshot in pane",
-      data: {
-        rowsCount: rows.length,
-        settledCount: settledPermissions.size,
-        toolPermissionIds,
-        stillVisibleIds,
-      },
-      runId: "initial",
-      hypothesisId: "H5",
-    });
-  }, [rows, settledPermissions]);
   const isPromptActive = useMemo(() => {
     const sorted = [...events].sort((a, b) => {
       if (a.seq !== b.seq) return a.seq - b.seq;
@@ -634,6 +587,7 @@ export function AcpChatPane({
     () =>
       ({
         spaceRoot,
+        backend: activeThread?.backend ?? "cursor",
         onOpenFile: (relPath: string) => {
           dismissPopovers();
           onOpenWorkspaceFile(relPath);
@@ -648,6 +602,7 @@ export function AcpChatPane({
       onPermissionRespond,
       settledPermissions,
       spaceRoot,
+      activeThread?.backend,
     ],
   );
 

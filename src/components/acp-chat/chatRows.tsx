@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { TerminalSquare } from "lucide-react";
+import {
+  CheckCircle2,
+  CircleDashed,
+  ListTodo,
+  Loader2,
+  TerminalSquare,
+} from "lucide-react";
 import type {
   AcpPermissionResponseOutcome,
   AcpPermissionRequestEventData,
 } from "../../types";
 import type { FoldedChatRow, FoldedToolRow } from "../../lib/foldAcpEvents";
-import { presentToolRow } from "../../lib/acpToolPresenter";
+import { presentToolRow, type ToolPresenterModel } from "../../lib/acpToolPresenter";
 import {
   useAcpChatUi,
   ACP_CHAT_DISMISS_POPOVERS_EVENT,
@@ -27,15 +33,17 @@ import {
 } from "./uiPrimitives";
 
 /** Borderless “activity stream” rows (tools / meta) — muted verb, base detail */
-const activityRow = "w-full max-w-none px-2 py-px text-ui-base leading-snug";
+const activityRowBare = "w-full max-w-none py-px text-ui-base leading-snug";
+const activityRow = `${activityRowBare} px-2`;
 const activityMuted = "text-[var(--basis-text-muted)]";
 const activityMono = `${typographyMonoCaption} text-[var(--basis-text-muted)]`;
 const activityDetailsSummary =
   "flex cursor-pointer list-none items-start gap-1.5 text-ui-base leading-snug [&::-webkit-details-marker]:hidden";
 
-function safeJson(obj: unknown, max = 6000): string {
+function safeJson(obj: unknown, max?: number): string {
   try {
     const s = JSON.stringify(obj, null, 2);
+    if (typeof max !== "number" || !Number.isFinite(max) || max <= 0) return s;
     return s.length > max ? `${s.slice(0, max)}\n…` : s;
   } catch {
     return String(obj);
@@ -183,7 +191,7 @@ function ToolLine({
       ) : (
         <>
           <span className="text-neutral-400">{verb}</span>
-          {detail ? (
+          {detail || detailSlot ? (
             <>
               {" "}
               {detailSlot ?? <span className="text-neutral-500">{detail}</span>}
@@ -195,11 +203,63 @@ function ToolLine({
   );
 }
 
+function TodoToolCard({
+  row,
+  model,
+}: {
+  row: FoldedToolRow;
+  model: ToolPresenterModel;
+}) {
+  if (model.uiKind !== "todo") return null;
+  const items = model.todoItems ?? [];
+  return (
+    <div className="my-3 w-full max-w-none rounded-md border border-[var(--basis-border)] bg-[var(--basis-surface)]/15">
+      <div className="flex items-center gap-1.5 px-3 py-1.5">
+        <ListTodo className="h-3 w-3 shrink-0 text-[var(--basis-text-muted)]" />
+        <span className="text-ui-sm leading-snug text-[var(--basis-text-muted)]">To-dos</span>
+        <span className="text-ui-sm leading-snug text-[var(--basis-text-faint)]">{items.length}</span>
+      </div>
+      <div className="space-y-px px-3 pb-1.5">
+        {items.map((todo, idx) => {
+          const status = todo.status.toLowerCase();
+          const done = status === "completed";
+          const inProgress = status === "in_progress";
+          return (
+            <div
+              key={`${todo.content}-${idx}`}
+              className="flex items-start gap-1.5 py-px"
+            >
+              {done ? (
+                <CheckCircle2 className="mt-[2px] h-3 w-3 shrink-0 text-emerald-400/90" />
+              ) : inProgress ? (
+                <Loader2 className="mt-[2px] h-3 w-3 shrink-0 animate-spin text-neutral-400" />
+              ) : (
+                <CircleDashed className="mt-[2px] h-3 w-3 shrink-0 text-[var(--basis-text-faint)]" />
+              )}
+              <span
+                className={
+                  done
+                    ? "min-w-0 flex-1 text-ui-sm leading-snug text-[var(--basis-text-faint)] line-through"
+                    : inProgress
+                      ? "min-w-0 flex-1 text-ui-sm leading-snug text-[var(--basis-text)]"
+                      : "min-w-0 flex-1 text-ui-sm leading-snug text-[var(--basis-text-muted)]"
+                }
+              >
+                {todo.content}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SingleToolRow({ row }: { row: FoldedToolRow }) {
   const ui = useAcpChatUi();
   const model = useMemo(
-    () => presentToolRow({ row, spaceRoot: ui.spaceRoot }),
-    [row, ui.spaceRoot],
+    () => presentToolRow({ row, spaceRoot: ui.spaceRoot, backend: ui.backend }),
+    [row, ui.spaceRoot, ui.backend],
   );
 
   const [hoverOpen, setHoverOpen] = useState(false);
@@ -226,7 +286,7 @@ function SingleToolRow({ row }: { row: FoldedToolRow }) {
         model.uiKind === "read" && model.openRelPath ? (
           <button
             type="button"
-            className="text-neutral-500 underline decoration-neutral-700 underline-offset-2 hover:text-neutral-300 hover:decoration-neutral-500"
+            className="text-neutral-500 hover:text-neutral-300"
             onClick={(e) => {
               e.stopPropagation();
               ui.onOpenFile(model.openRelPath!);
@@ -234,6 +294,17 @@ function SingleToolRow({ row }: { row: FoldedToolRow }) {
           >
             {model.detail}
           </button>
+        ) : model.linkedUrl ? (
+          <a
+            href={model.linkedUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="min-w-0 max-w-full truncate text-neutral-500 underline decoration-neutral-700 underline-offset-2 hover:text-neutral-300 hover:decoration-neutral-500"
+            title={model.linkedUrl}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {model.linkedUrl}
+          </a>
         ) : model.uiKind === "edit" ? (
           <span className="inline-flex items-center gap-2">
             <button
@@ -260,19 +331,124 @@ function SingleToolRow({ row }: { row: FoldedToolRow }) {
     />
   );
 
-  const links = model.resultLinks?.length ? (
-    <ToolResultLinks links={model.resultLinks ?? []} />
+  const links =
+    model.uiKind !== "read" && model.resultLinks?.length ? (
+      <ToolResultLinks links={model.resultLinks ?? []} />
+    ) : null;
+
+  const facts =
+    model.uiKind === "read" || model.uiKind === "search" || model.uiKind === "expand"
+      ? []
+      : (model.facts ?? []);
+  const factsRow = facts.length ? (
+    <div className="mt-1 flex flex-wrap gap-1.5 pl-0.5">
+      {facts.map((fact) => (
+        <span
+          key={`${fact.label}:${fact.value}`}
+          className="rounded border border-[var(--basis-border)] bg-[var(--basis-surface)] px-1.5 py-[1px] text-[10px] text-[var(--basis-text-faint)]"
+        >
+          {fact.label}: {fact.value}
+        </span>
+      ))}
+    </div>
   ) : null;
 
-  if (model.uiKind === "search") {
+  if (model.uiKind === "todo") {
+    return <TodoToolCard row={row} model={model} />;
+  }
+
+  if (model.uiKind === "expand") {
+    const hasBody = Boolean(model.expandedText?.trim());
+    if (!hasBody) {
+      return (
+        <div className={`relative ${activityRow}`}>
+          <div className="min-w-0">{line}</div>
+          {factsRow}
+          {links}
+          {permission && !permissionSettled ? (
+            <PermissionInline
+              data={permission}
+              settled={permissionSettled}
+              onRespond={(outcome) =>
+                ui.onPermissionRespond(permission.requestId, outcome)
+              }
+            />
+          ) : null}
+        </div>
+      );
+    }
     return (
-      <div
-        className={`relative ${activityRow}`}
+      <details className={`group relative ${activityRow}`}>
+        <summary className={activityDetailsSummary}>
+          <span className="min-w-0 flex-1">{line}</span>
+        </summary>
+        {factsRow}
+        {links}
+        <pre
+          className={`thin-scrollbar mt-1 max-h-56 overflow-y-auto whitespace-pre-wrap break-words ${typographyMonoCaption} text-[var(--basis-text-muted)]`}
+        >
+          {model.expandedText}
+        </pre>
+        {permission && !permissionSettled ? (
+          <PermissionInline
+            data={permission}
+            settled={permissionSettled}
+            onRespond={(outcome) =>
+              ui.onPermissionRespond(permission.requestId, outcome)
+            }
+          />
+        ) : null}
+      </details>
+    );
+  }
+
+  if (model.uiKind === "search") {
+    const expandableSearch = Boolean(model.expandedText?.trim());
+    if (!expandableSearch) {
+      return (
+        <div
+          className={`relative ${activityRow}`}
+          onMouseEnter={() => setHoverOpen(true)}
+          onMouseLeave={() => setHoverOpen(false)}
+        >
+          <div className="min-w-0">{line}</div>
+          {factsRow}
+          {links}
+          <ToolHitsPopover
+            open={hoverOpen && Boolean(model.searchHits?.length)}
+            hits={model.searchHits ?? []}
+            onPick={(rel) => {
+              if (rel) ui.onOpenFile(rel);
+            }}
+          />
+          {permission && !permissionSettled ? (
+            <PermissionInline
+              data={permission}
+              settled={permissionSettled}
+              onRespond={(outcome) =>
+                ui.onPermissionRespond(permission.requestId, outcome)
+              }
+            />
+          ) : null}
+        </div>
+      );
+    }
+    return (
+      <details
+        className={`group relative ${activityRow}`}
         onMouseEnter={() => setHoverOpen(true)}
         onMouseLeave={() => setHoverOpen(false)}
       >
-        <div className="min-w-0">{line}</div>
+        <summary className={activityDetailsSummary}>
+          <span className="min-w-0 flex-1">{line}</span>
+        </summary>
+        {factsRow}
         {links}
+        <pre
+          className={`thin-scrollbar mt-1 max-h-56 overflow-y-auto whitespace-pre-wrap break-words ${typographyMonoCaption} text-[var(--basis-text-muted)]`}
+        >
+          {model.expandedText}
+        </pre>
         <ToolHitsPopover
           open={hoverOpen && Boolean(model.searchHits?.length)}
           hits={model.searchHits ?? []}
@@ -289,16 +465,51 @@ function SingleToolRow({ row }: { row: FoldedToolRow }) {
             }
           />
         ) : null}
-      </div>
+      </details>
+    );
+  }
+
+  if (model.uiKind === "edit") {
+    return (
+      <details className={`group ${activityRow}`}>
+        <summary className={activityDetailsSummary}>
+          <span className="min-w-0 flex-1">{line}</span>
+        </summary>
+        {factsRow}
+        {links}
+        <div className="mt-1">
+          <div
+            className={`thin-scrollbar max-h-64 overflow-y-auto p-2.5 ${typographyMonoCaption}`}
+          >
+            {model.diffOldText ? (
+              <div className="mb-2 whitespace-pre-wrap break-words text-rose-300/80">
+                {model.diffOldText}
+              </div>
+            ) : null}
+            {model.diffNewText ? (
+              <div className="whitespace-pre-wrap break-words text-emerald-300/80">
+                {model.diffNewText}
+              </div>
+            ) : null}
+          </div>
+        </div>
+        {permission && !permissionSettled ? (
+          <PermissionInline
+            data={permission}
+            settled={permissionSettled}
+            onRespond={(outcome) =>
+              ui.onPermissionRespond(permission.requestId, outcome)
+            }
+          />
+        ) : null}
+      </details>
     );
   }
 
   const expandable =
-    model.uiKind === "terminal" ||
-    model.uiKind === "web" ||
-    model.uiKind === "generic"
+    model.uiKind === "terminal" || model.uiKind === "generic"
       ? Boolean(model.expandedText)
-      : model.uiKind === "edit";
+      : false;
 
   if (expandable) {
     return (
@@ -320,6 +531,7 @@ function SingleToolRow({ row }: { row: FoldedToolRow }) {
           )}
           <div className="min-w-0 flex-1 truncate text-ui-sm">{line}</div>
         </button>
+        {factsRow ? <div className="px-2.5 pb-1">{factsRow}</div> : null}
         {links ? <div className="px-2.5 pb-1">{links}</div> : null}
         {expanded ? (
           <div className="border-t border-[var(--basis-border)]">
@@ -367,6 +579,7 @@ function SingleToolRow({ row }: { row: FoldedToolRow }) {
   return (
     <div className={activityRow}>
       <div className="min-w-0">{line}</div>
+      {factsRow}
       {links}
       {permission && !permissionSettled ? (
         <PermissionInline
@@ -388,8 +601,8 @@ function ToolExploreGroupRowView({
 }) {
   const label = row.explore === "search" ? "searches" : "files";
   return (
-    <details className={`group ${activityRow}`}>
-      <summary className={activityDetailsSummary}>
+    <details className={`group ${activityRowBare}`}>
+      <summary className={`${activityDetailsSummary} px-2`}>
         <span className="text-neutral-400">Explored</span>{" "}
         <span className="text-neutral-500">
           {row.items.length} {label}
@@ -398,6 +611,36 @@ function ToolExploreGroupRowView({
       <div className="space-y-1 pt-1">
         {row.items.map((item) => (
           <SingleToolRow key={item.toolCallId} row={item} />
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function WorkedGroupRowView({
+  row,
+  onOpenPlan,
+  onOpenSubagent,
+}: {
+  row: Extract<FoldedChatRow, { type: "worked_group" }>;
+  onOpenPlan: (path?: string) => void;
+  onOpenSubagent: (
+    row: Extract<FoldedChatRow, { type: "subagent" }>,
+  ) => void | Promise<void>;
+}) {
+  return (
+    <details className={`group ${activityRow}`}>
+      <summary className={activityDetailsSummary}>
+        <span className="text-neutral-400">{row.label}</span>
+      </summary>
+      <div className="space-y-1 pt-1">
+        {row.items.map((item) => (
+          <ChatRowView
+            key={`${item.type}-${item.id}`}
+            row={item}
+            onOpenPlan={onOpenPlan}
+            onOpenSubagent={onOpenSubagent}
+          />
         ))}
       </div>
     </details>
@@ -509,6 +752,14 @@ export function ChatRowView({
       return <SingleToolRow row={row} />;
     case "tool_explore_group":
       return <ToolExploreGroupRowView row={row} />;
+    case "worked_group":
+      return (
+        <WorkedGroupRowView
+          row={row}
+          onOpenPlan={onOpenPlan}
+          onOpenSubagent={onOpenSubagent}
+        />
+      );
     case "permission":
       return (
         <PermissionInline
@@ -561,6 +812,16 @@ export function ChatRowView({
           >
             View plan
           </button>
+          <details className="mt-1 rounded border border-[var(--basis-border)] bg-[var(--basis-surface)]/50 p-1.5">
+            <summary className="cursor-pointer text-[10px] uppercase tracking-wide text-[var(--basis-text-faint)]">
+              Raw plan JSON
+            </summary>
+            <pre
+              className={`thin-scrollbar mt-1 max-h-80 overflow-y-auto whitespace-pre-wrap break-words ${typographyMonoCaption} text-[var(--basis-text-muted)]`}
+            >
+              {safeJson(row.data)}
+            </pre>
+          </details>
         </div>
       );
     case "session_extra":

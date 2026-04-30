@@ -130,6 +130,13 @@ export function MarkdownMessage({
           ul: ({ children }) => <ul>{children}</ul>,
           ol: ({ children }) => <ol>{children}</ol>,
           li: ({ children }) => <li>{children}</li>,
+          table: ({ children }) => (
+            <div className="chat-markdown-table-wrap">
+              <div className="chat-markdown-table-scroll thin-scrollbar">
+                <table>{children}</table>
+              </div>
+            </div>
+          ),
           code: ({ children, className, ...props }: any) => (
             <code className={className} {...props}>
               {children}
