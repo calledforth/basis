@@ -165,7 +165,8 @@ function looksLikePathForPhrase(text: string): boolean {
 function opencodeSearchPhrase(rawInput: unknown, titleFallbackDetail: string): string {
   const first = firstStringDeep(rawInput, ["query", "pattern", "search", "q", "glob"]);
   const pathish = firstStringDeep(rawInput, ["path", "filePath", "filepath", "file", "target", "uri"]);
-  const pick = first ?? titleFallbackDetail.trim() ?? (pathish && looksLikePathForPhrase(pathish) ? pathish : undefined);
+  const titleFallback = titleFallbackDetail.trim();
+  const pick = first || titleFallback || (pathish && looksLikePathForPhrase(pathish) ? pathish : undefined);
   return (pick ?? "").trim();
 }
 
