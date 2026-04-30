@@ -1,12 +1,16 @@
+import type { ThreadBackend } from "../types";
 import { extractChunkText } from "./acpExtractText";
 import { posixBasename, posixDirname, toVaultRelPath } from "./acpPath";
 
 export type ToolUiKind =
   | "search"
+  /** One-line verb/detail; optional monospace body toggled via details summary */
+  | "expand"
   | "read"
   | "edit"
   | "terminal"
   | "web"
+  | "todo"
   | "generic";
 
 export type ToolSearchHit = {
@@ -23,10 +27,12 @@ export type ToolPresenterModel = {
   statusNote?: string;
   /** For reads: clickable open target */
   openRelPath?: string;
-  /** For searches: hover popover hits */
+  /** Only for searches: hover popover file hits */
   searchHits?: ToolSearchHit[];
   /** Persisted URLs extracted from tool output/content */
   resultLinks?: string[];
+  /** One inline link (e.g. fetch target URL) */
+  linkedUrl?: string;
   /** For edits: diff summary */
   diffPath?: string;
   diffAdds?: number;
@@ -36,11 +42,93 @@ export type ToolPresenterModel = {
   filename?: string;
   /** Expanded bodies (non-JSON) */
   expandedText?: string;
+  /** Structured todos (todowrite) */
+  todoItems?: Array<{
+    content: string;
+    status: string;
+    priority?: string;
+  }>;
+  /** Lightweight facts extracted without dropping raw payloads */
+  facts?: Array<{ label: string; value: string }>;
 };
 
 function asRecord(v: unknown): Record<string, unknown> | null {
   if (!v || typeof v !== "object") return null;
   return v as Record<string, unknown>;
+}
+
+function extractTodos(rawOutput: unknown, rawInput: unknown): Array<{
+  content: string;
+  status: string;
+  priority?: string;
+}> {
+  const parseTodos = (value: unknown) => {
+    if (!Array.isArray(value)) return [] as Array<{
+      content: string;
+      status: string;
+      priority?: string;
+    }>;
+    const out: Array<{ content: string; status: string; priority?: string }> = [];
+    for (const item of value) {
+      const rec = asRecord(item);
+      if (!rec) continue;
+      const content = typeof rec.content === "string" ? rec.content.trim() : "";
+      if (!content) continue;
+      const status = typeof rec.status === "string" ? rec.status.trim() : "pending";
+      const priority =
+        typeof rec.priority === "string" && rec.priority.trim()
+          ? rec.priority.trim()
+          : undefined;
+      out.push({ content, status, priority });
+    }
+    return out;
+  };
+  const outRec = asRecord(rawOutput);
+  const outMeta = asRecord(outRec?.metadata);
+  const outTodos = parseTodos(outMeta?.todos);
+  if (outTodos.length) return outTodos;
+  const inRec = asRecord(rawInput);
+  return parseTodos(inRec?.todos);
+}
+
+function firstStringDeep(value: unknown, keys: string[]): string | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const rec = value as Record<string, unknown>;
+  for (const key of keys) {
+    const v = rec[key];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  for (const v of Object.values(rec)) {
+    const nested = firstStringDeep(v, keys);
+    if (nested) return nested;
+  }
+  return undefined;
+}
+
+function firstNumberDeep(value: unknown, keys: string[]): number | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const rec = value as Record<string, unknown>;
+  for (const key of keys) {
+    const v = rec[key];
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+  }
+  for (const v of Object.values(rec)) {
+    const nested = firstNumberDeep(v, keys);
+    if (typeof nested === "number") return nested;
+  }
+  return undefined;
+}
+
+function pushFact(
+  facts: Array<{ label: string; value: string }>,
+  label: string,
+  value: string | number | undefined,
+) {
+  if (value === undefined || value === null) return;
+  const text = typeof value === "number" ? String(value) : value.trim();
+  if (!text) return;
+  if (facts.some((f) => f.label === label && f.value === text)) return;
+  facts.push({ label, value: text });
 }
 
 function toolKindFromRow(kind?: string): string | undefined {
@@ -51,6 +139,43 @@ function toolKindFromRow(kind?: string): string | undefined {
 function titleLooksLikeGrep(title: string): boolean {
   const t = title.toLowerCase();
   return /\bgrepped\b/.test(t) || /\bgrep\b/.test(t);
+}
+
+export function titleLooksLikeWebSearch(title: string): boolean {
+  const raw = title.trim().toLowerCase();
+  return raw === "websearch" || raw === "web search" || /^web\s+search\b/i.test(title.trim());
+}
+
+function aggregateSearchHitCount(opts: {
+  rawOutput?: unknown;
+  locationsLen: number;
+  metadataHint?: number;
+}): number | undefined {
+  if (typeof opts.metadataHint === "number") return opts.metadataHint;
+  const n = firstNumberDeep(opts.rawOutput ?? {}, ["totalMatches", "totalFiles", "referenceCount", "matchCount", "count"]);
+  if (typeof n === "number") return n;
+  if (opts.locationsLen > 0) return opts.locationsLen;
+  return undefined;
+}
+
+function looksLikePathForPhrase(text: string): boolean {
+  return /[\\/]/.test(text) || /\.[A-Za-z0-9]{1,8}$/.test(text);
+}
+
+function opencodeSearchPhrase(rawInput: unknown, titleFallbackDetail: string): string {
+  const first = firstStringDeep(rawInput, ["query", "pattern", "search", "q", "glob"]);
+  const pathish = firstStringDeep(rawInput, ["path", "filePath", "filepath", "file", "target", "uri"]);
+  const pick = first ?? titleFallbackDetail.trim() ?? (pathish && looksLikePathForPhrase(pathish) ? pathish : undefined);
+  return (pick ?? "").trim();
+}
+
+function detailWithOptionalCount(main: string | undefined, count: number | undefined): string {
+  const m = main?.trim() ?? "";
+  if (typeof count === "number") {
+    const matchText = `${count} match${count === 1 ? "" : "es"}`;
+    return m ? `${m} ${matchText}` : matchText;
+  }
+  return m;
 }
 
 function splitVerbDetail(title: string, fallbackVerb: string): { verb: string; detail: string } {
@@ -64,6 +189,18 @@ function splitVerbDetail(title: string, fallbackVerb: string): { verb: string; d
 function presentRawTitle(title: string, fallback: string): { verb: string; detail: string } {
   const t = title.trim();
   return { verb: t || fallback, detail: "" };
+}
+
+function codeSearchFallbackFromMergedTitle(title: string): string {
+  const m = /^code\s+search\s*:?\s*(.*)$/i.exec(title.trim());
+  const inner = (m?.[1] ?? "").trim();
+  return inner;
+}
+
+function taskFallbackFromMergedTitle(title: string): string {
+  const m = /^task\s*:?\s*(.*)$/i.exec(title.trim());
+  const inner = (m?.[1] ?? "").trim();
+  return inner;
 }
 
 function looksLikePath(text: string): boolean {
@@ -103,6 +240,32 @@ function extractReadSummary(rawOutput: unknown): string | undefined {
   if (typeof r.totalFiles === "number") {
     return `${r.totalFiles} files`;
   }
+  return undefined;
+}
+
+function extractOutputPath(rawOutput: unknown): string | undefined {
+  const r = asRecord(rawOutput);
+  if (!r) return undefined;
+  const candidates = ["output", "path", "file", "filePath", "filepath", "uri"];
+  for (const key of candidates) {
+    const v = r[key];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return undefined;
+}
+
+function extractMetadataCount(rawOutput: unknown): number | undefined {
+  const r = asRecord(rawOutput);
+  const meta = asRecord(r?.metadata);
+  if (typeof meta?.count === "number") return meta.count;
+  if (typeof meta?.matches === "number") return meta.matches;
+  return undefined;
+}
+
+function extractMetadataTruncated(rawOutput: unknown): boolean | undefined {
+  const r = asRecord(rawOutput);
+  const meta = asRecord(r?.metadata);
+  if (typeof meta?.truncated === "boolean") return meta.truncated;
   return undefined;
 }
 
@@ -214,6 +377,7 @@ function stringifyUnknownOutput(v: unknown): string | undefined {
   const r = asRecord(v);
   if (!r) return undefined;
   const candidates = [
+    r.error,
     r.output,
     r.stdout,
     r.stderr,
@@ -257,7 +421,34 @@ function extractTerminalSignal(row: { contentItems: unknown[]; rawOutput?: unkno
   const exit = out?.exitStatus;
   const ex = asRecord(exit);
   if (typeof ex?.exitCode === "number") return `exit ${ex.exitCode}`;
+  const meta = asRecord(out?.metadata);
+  if (typeof meta?.exit === "number") return `exit ${meta.exit}`;
   return undefined;
+}
+
+function trimOneLine(s: string, max: number): string {
+  const t = s.replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  if (t.length <= max) return t;
+  return `${t.slice(0, max)}…`;
+}
+
+export type RawToolEventTitleSource = {
+  rawEvents?: Array<{ event: string; data: unknown }>;
+};
+
+export function getFirstRawToolEventTitle(row: RawToolEventTitleSource): string {
+  const ev = row.rawEvents?.find((entry) => {
+    if (!entry || (entry.event !== "tool_call" && entry.event !== "tool_call_update")) return false;
+    const rec = asRecord(entry.data);
+    return typeof rec?.title === "string" && rec.title.trim().length > 0;
+  });
+  const rec = asRecord(ev?.data);
+  return typeof rec?.title === "string" ? rec.title.trim() : "";
+}
+
+export function isTodoWriteToolRow(row: RawToolEventTitleSource): boolean {
+  return getFirstRawToolEventTitle(row).toLowerCase() === "todowrite";
 }
 
 export function presentToolRow(args: {
@@ -270,20 +461,59 @@ export function presentToolRow(args: {
     locations?: unknown[];
     contentItems: unknown[];
     resultLinks?: string[];
+    rawEvents?: Array<{ event: string; data: unknown }>;
   };
   spaceRoot: string;
+  backend?: ThreadBackend;
 }): ToolPresenterModel {
+  const backend = args.backend ?? "cursor";
   const statusNote = args.row.status?.trim() || "";
   const kind = toolKindFromRow(args.row.kind);
   const title = args.row.title.trim();
+  const firstToolRawTitle = getFirstRawToolEventTitle(args.row);
   const resultLinks = args.row.resultLinks?.length
     ? [...new Set(args.row.resultLinks.filter((u) => /^https?:\/\//i.test(u)))]
     : undefined;
 
   const locs = collectLocations(args.row);
   const firstLocPath = locs[0]?.path;
+  const facts: Array<{ label: string; value: string }> = [];
+  if (locs.length > 0) pushFact(facts, "locations", locs.length);
+  if (args.row.contentItems.length > 0) {
+    pushFact(facts, "content items", args.row.contentItems.length);
+  }
+  const queryCandidate = firstStringDeep(args.row.rawInput, [
+    "query",
+    "pattern",
+    "search",
+    "q",
+  ]);
+  pushFact(facts, "query", queryCandidate);
+  const pathCandidate = firstStringDeep(args.row.rawInput, [
+    "path",
+    "filePath",
+    "filepath",
+    "file",
+    "target",
+    "glob",
+    "uri",
+  ]);
+  pushFact(facts, "path", pathCandidate);
+  const limitCandidate = firstNumberDeep(args.row.rawInput, ["limit", "head_limit"]);
+  pushFact(facts, "limit", limitCandidate);
+  const metadataCount = extractMetadataCount(args.row.rawOutput);
+  pushFact(facts, "count", metadataCount);
+  const truncated = extractMetadataTruncated(args.row.rawOutput);
+  if (typeof truncated === "boolean") {
+    pushFact(facts, "truncated", truncated ? "true" : "false");
+  }
 
-  if (kind === "search" || titleLooksLikeGrep(title)) {
+  const searchSurface =
+    kind === "search" ||
+    titleLooksLikeGrep(title) ||
+    (backend === "opencode" && kind === "other" && titleLooksLikeWebSearch(title));
+
+  if (searchSurface) {
     const { verb, detail } = presentRawTitle(title, "Search");
     const hits: ToolSearchHit[] = [];
     for (const loc of locs) {
@@ -294,8 +524,52 @@ export function presentToolRow(args: {
     }
     const oneWordTitle = /^[A-Za-z][A-Za-z ]*$/.test(verb) && !verb.includes(":");
     const searchSummary = extractSearchSummary(args.row.rawOutput);
+    const outputPath = extractOutputPath(args.row.rawOutput);
+    const outputName =
+      outputPath && looksLikePath(outputPath) ? posixBasename(outputPath) : undefined;
+
+    if (backend === "opencode") {
+      const displayVerb = firstToolRawTitle.toLowerCase();
+      const twoWord = title.trim().match(/^(\S+)\s+(.+)/);
+      const fromTitleTail = twoWord?.[2]?.trim() ?? "";
+      const phrase = opencodeSearchPhrase(args.row.rawInput, fromTitleTail).trim();
+      const countNum = aggregateSearchHitCount({
+        rawOutput: args.row.rawOutput,
+        locationsLen: locs.length,
+        metadataHint: metadataCount,
+      });
+      let detailLine = detailWithOptionalCount(
+        phrase.length ? phrase : undefined,
+        countNum !== undefined ? countNum : undefined,
+      ).trim();
+      if (!detailLine) {
+        detailLine =
+          detail ||
+          outputName ||
+          searchSummary ||
+          (oneWordTitle && hits.length
+            ? `${hits.length} result${hits.length === 1 ? "" : "s"}`
+            : "");
+      }
+      const expandedText =
+        stringifyUnknownOutput(args.row.rawOutput) ??
+        extractTextFromContentItems(args.row.contentItems) ??
+        undefined;
+      return {
+        uiKind: "search",
+        verb: displayVerb || "search",
+        detail: detailLine,
+        statusNote: statusNote || undefined,
+        searchHits: hits.length ? hits : undefined,
+        expandedText: expandedText?.trim() || undefined,
+        resultLinks,
+        facts,
+      };
+    }
+
     const detailText =
       detail ||
+      outputName ||
       searchSummary ||
       (oneWordTitle && hits.length
         ? `${hits.length} result${hits.length === 1 ? "" : "s"}`
@@ -306,28 +580,38 @@ export function presentToolRow(args: {
       detail: detailText,
       statusNote: statusNote || undefined,
       searchHits: hits.length ? hits : undefined,
-      resultLinks
+      expandedText:
+        (stringifyUnknownOutput(args.row.rawOutput) ??
+          extractTextFromContentItems(args.row.contentItems) ??
+          "")
+          .trim() || undefined,
+      resultLinks,
+      facts,
     };
   }
 
   if (kind === "read") {
-    const { verb, detail } = presentRawTitle(title, "Read");
+    const parsedTitle = splitVerbDetail(title, "Read");
     const pathSource =
       firstLocPath ??
       bestPathFromText(title) ??
       extractPathFromRawInput(args.row.rawInput) ??
+      bestPathFromText(extractTextFromContentItems(args.row.contentItems)) ??
+      extractOutputPath(args.row.rawOutput) ??
       bestPathFromText(stringifyUnknownOutput(args.row.rawOutput) ?? "");
     const rel = pathSource ? toVaultRelPath({ spaceRoot: args.spaceRoot, rawPath: pathSource }) : undefined;
     const openRelPath = rel;
     const fromPath = pathSource && looksLikePath(pathSource) ? posixBasename(pathSource) : undefined;
     const readSummary = extractReadSummary(args.row.rawOutput);
+    const titleDetail = /^read$/i.test(parsedTitle.verb) ? parsedTitle.detail : "";
     return {
       uiKind: "read",
-      verb,
-      detail: detail || fromPath || readSummary || "",
+      verb: parsedTitle.verb || "Read",
+      detail: fromPath || titleDetail || readSummary || "",
       statusNote: statusNote || undefined,
       openRelPath,
-      resultLinks
+      resultLinks,
+      facts
     };
   }
 
@@ -350,7 +634,8 @@ export function presentToolRow(args: {
     const filename =
       rel ? posixBasename(rel) : diffPathRaw ? posixBasename(diffPathRaw) : posixBasename(titleDetail || titleVerb || title || "…");
     const stats = diffLineStats(diff.oldText, diff.newText ?? "");
-    const { verb } = presentRawTitle(title, "Edited");
+    const { verb: titleVerbDisplay } = presentRawTitle(title, "Edited");
+    const verb = firstToolRawTitle.trim() || titleVerbDisplay;
       return {
         uiKind: "edit",
         verb,
@@ -362,13 +647,37 @@ export function presentToolRow(args: {
         diffOldText: diff.oldText,
         diffNewText: diff.newText,
         filename,
-        resultLinks
+        resultLinks,
+        facts
       };
   }
 
   if (kind === "execute") {
-    const { verb, detail } = presentRawTitle(title, "Ran");
     const terminalNote = extractTerminalSignal(args.row);
+    if (backend === "opencode" && firstToolRawTitle.toLowerCase() === "bash") {
+      const displayVerb = firstToolRawTitle.toLowerCase() || "bash";
+      const desc = firstStringDeep(args.row.rawInput, ["description"]);
+      const cmd = firstStringDeep(args.row.rawInput, ["command"]);
+      const d = desc?.trim() ? trimOneLine(desc, 320) : "";
+      const c = cmd?.trim() ? trimOneLine(cmd, 320) : "";
+      let phrase = "";
+      if (d && c) phrase = `${d} ${c}`;
+      else phrase = d || c || (title.trim() ? trimOneLine(title, 420) : "");
+      const expandedText =
+        stringifyUnknownOutput(args.row.rawOutput) ??
+        extractTextFromContentItems(args.row.contentItems) ??
+        undefined;
+      return {
+        uiKind: "expand",
+        verb: displayVerb,
+        detail: phrase,
+        statusNote: statusNote || terminalNote || undefined,
+        expandedText: expandedText?.trim() || undefined,
+        resultLinks,
+        facts,
+      };
+    }
+    const { verb, detail } = presentRawTitle(title, "Ran");
     const textOut = extractTextFromContentItems(args.row.contentItems);
     const rawOutText = stringifyUnknownOutput(args.row.rawOutput);
     const expanded = [textOut, rawOutText].filter(Boolean).join("\n").trim();
@@ -378,34 +687,165 @@ export function presentToolRow(args: {
       detail,
       statusNote: statusNote || terminalNote || undefined,
       expandedText: expanded || undefined,
-      resultLinks
+      resultLinks,
+      facts
     };
   }
 
   if (kind === "fetch") {
-    const { verb, detail } = presentRawTitle(title, "Fetched");
-    const textOut = extractTextFromContentItems(args.row.contentItems);
+    const st = statusNote.toLowerCase();
+    const outRec = asRecord(args.row.rawOutput);
+    const errField =
+      typeof outRec?.error === "string" && outRec.error.trim()
+        ? outRec.error.trim()
+        : "";
+    const done = st === "completed" || st === "success" || st === "succeeded";
+    let failed =
+      st === "failed" || st === "error" || st === "cancelled" || st === "canceled";
+    if (!done && errField) failed = true;
+    const verb = failed ? "Fetch attempted" : done ? "Fetched" : "Fetching";
+    const rawUrl = firstStringDeep(args.row.rawInput, ["url", "uri", "href"])?.trim() ?? "";
+    const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : "";
+    const textOut = extractTextFromContentItems(args.row.contentItems).trim();
+    const rawOutStr = stringifyUnknownOutput(args.row.rawOutput)?.trim() ?? "";
+    const expandedText = [textOut || errField || rawOutStr].filter(Boolean).join("\n\n") || undefined;
+    const { verb: fbVerb, detail: fbDetail } = presentRawTitle(title, "Fetch");
     return {
-      uiKind: "web",
+      uiKind: "expand",
       verb,
-      detail,
+      detail: url ? "" : (fbDetail.trim() || fbVerb.trim() || title.trim() || "Fetch"),
+      linkedUrl: url || undefined,
       statusNote: statusNote || undefined,
-      expandedText: textOut || undefined,
-      resultLinks
+      expandedText,
+      resultLinks,
+      facts
     };
   }
 
-  const { verb, detail } = presentRawTitle(title, kind ? kind : "Ran");
+  if (kind === "other" && firstToolRawTitle.toLowerCase() === "codesearch") {
+    const displayVerb = firstToolRawTitle.toLowerCase() || "codesearch";
+    const twoWord = title.trim().match(/^(\S+)\s+(.+)/);
+    const fromTitleTail = twoWord?.[2]?.trim() ?? "";
+    const phrase = opencodeSearchPhrase(args.row.rawInput, fromTitleTail).trim();
+    const countNum = aggregateSearchHitCount({
+      rawOutput: args.row.rawOutput,
+      locationsLen: locs.length,
+      metadataHint: metadataCount,
+    });
+    let detailLine = detailWithOptionalCount(
+      phrase.length ? phrase : undefined,
+      countNum !== undefined ? countNum : undefined,
+    ).trim();
+    if (!detailLine) {
+      detailLine = codeSearchFallbackFromMergedTitle(title);
+    }
+    const expandedText =
+      stringifyUnknownOutput(args.row.rawOutput) ??
+      extractTextFromContentItems(args.row.contentItems) ??
+      undefined;
+    return {
+      uiKind: "search",
+      verb: displayVerb,
+      detail: detailLine,
+      statusNote: statusNote || undefined,
+      expandedText: expandedText?.trim() || undefined,
+      resultLinks,
+      facts,
+    };
+  }
+
+  if (kind === "other" && firstToolRawTitle.toLowerCase() === "task") {
+    const displayVerb = firstToolRawTitle.toLowerCase() || "task";
+    const desc = firstStringDeep(args.row.rawInput, ["description"]);
+    const prompt = firstStringDeep(args.row.rawInput, ["prompt"]);
+    const out = asRecord(args.row.rawOutput);
+    const meta = asRecord(out?.metadata);
+    const modelMeta = asRecord(meta?.model);
+    const modelId =
+      typeof modelMeta?.modelID === "string" ? modelMeta.modelID.trim() : "";
+    const base =
+      (desc?.trim() && trimOneLine(desc, 320)) ||
+      (title.trim() && trimOneLine(title, 320)) ||
+      (prompt?.trim() && trimOneLine(prompt, 320)) ||
+      taskFallbackFromMergedTitle(title);
+    const detailLine = base && modelId ? `${base} — ${modelId}` : base || modelId;
+    const expandedText =
+      stringifyUnknownOutput(args.row.rawOutput) ??
+      extractTextFromContentItems(args.row.contentItems) ??
+      undefined;
+    return {
+      uiKind: "expand",
+      verb: displayVerb,
+      detail: detailLine,
+      statusNote: statusNote || undefined,
+      expandedText: expandedText?.trim() || undefined,
+      resultLinks,
+      facts,
+    };
+  }
+
+  if (kind === "other" && firstToolRawTitle.toLowerCase() === "skill") {
+    const rawOut = asRecord(args.row.rawOutput);
+    const rawMeta = asRecord(rawOut?.metadata);
+    const skillName =
+      firstStringDeep(args.row.rawInput, ["name"]) ??
+      firstStringDeep(args.row.rawOutput, ["name"]) ??
+      (typeof rawMeta?.name === "string" ? rawMeta.name : undefined) ??
+      "";
+    const detailLine = skillName.trim();
+    const expandedText =
+      stringifyUnknownOutput(args.row.rawOutput) ??
+      extractTextFromContentItems(args.row.contentItems) ??
+      undefined;
+    return {
+      uiKind: "expand",
+      verb: "load skill",
+      detail: detailLine,
+      statusNote: statusNote || undefined,
+      expandedText: expandedText?.trim() || undefined,
+      resultLinks,
+      facts,
+    };
+  }
+
+  if (kind === "other" && firstToolRawTitle.toLowerCase() === "todowrite") {
+    const todos = extractTodos(args.row.rawOutput, args.row.rawInput);
+    const pendingCount = todos.filter((t) => t.status !== "completed").length;
+    const detail =
+      pendingCount > 0 ? `${pendingCount} todo${pendingCount === 1 ? "" : "s"}` : "";
+    return {
+      uiKind: "todo",
+      verb: "todos",
+      detail,
+      statusNote: statusNote || undefined,
+      todoItems: todos,
+      resultLinks,
+      facts,
+    };
+  }
+
+  const normalizedTitle = title.toLowerCase();
+  const titleVerbAlias =
+    normalizedTitle === "codesearch"
+      ? "codesearch"
+      : normalizedTitle === "websearch"
+        ? "websearch"
+        : normalizedTitle === "task"
+          ? "task"
+          : "";
+  const displayVerb =
+    title || titleVerbAlias || (kind && kind !== "other" ? kind : "tool");
   const genericText = extractTextFromContentItems(args.row.contentItems);
   const rawOut = stringifyUnknownOutput(args.row.rawOutput);
   const expanded = [genericText, rawOut].filter(Boolean).join("\n").trim();
   return {
-    uiKind: "generic",
-    verb,
-    detail,
+    uiKind: "expand",
+    verb: displayVerb,
+    detail: statusNote,
     statusNote: statusNote || undefined,
     expandedText: expanded || undefined,
-    resultLinks
+    resultLinks,
+    facts
   };
 }
 
@@ -416,6 +856,7 @@ export function toolRowExploreGroupKind(row: {
   const kind = toolKindFromRow(row.kind);
   const title = row.title.trim();
   if (kind === "search" || titleLooksLikeGrep(title)) return "search";
+  if ((!kind || kind === "other") && titleLooksLikeWebSearch(title)) return "search";
   if (kind === "read") return "read";
   return null;
 }

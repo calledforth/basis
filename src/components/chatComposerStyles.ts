@@ -2,11 +2,11 @@ import { typographyBody } from "../lib/typography";
 
 /** Shared shell for composer and user messages — single source of truth for styling */
 export const chatInputShell =
-  "flex w-full flex-col gap-0.5 rounded-md border border-[var(--basis-border)] bg-[var(--basis-surface)] p-1 shadow-sm";
+  "flex w-full flex-col gap-0.5 rounded-[var(--basis-chat-shell-radius)] border border-[var(--basis-border)] bg-[var(--basis-surface)] p-1 shadow-sm";
 
 /** Tighter corners (e.g. home composer) */
 export const chatInputShellSm =
-  "flex w-full flex-col gap-0.5 rounded-md border border-[var(--basis-border)] bg-[var(--basis-surface)] p-1 shadow-lg";
+  "flex w-full flex-col gap-0.5 rounded-[var(--basis-chat-shell-radius)] border border-[var(--basis-border)] bg-[var(--basis-surface)] p-1 shadow-lg";
 
 /** Inner typography + padding shared by user bubble text (composer textarea uses tighter vertical padding) */
 export const chatUserInner =

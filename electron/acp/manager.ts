@@ -277,9 +277,15 @@ export class AcpManager {
             this.deps.emitAcpEvent(route.spaceSlug, route.threadId, "tool", "tool_call", update, sessionId);
             return;
           case "tool_call_update": {
+            const content: unknown[] = Array.isArray(update.content)
+              ? (update.content as unknown[])
+              : [];
             this.deps.emitAcpEvent(route.spaceSlug, route.threadId, "tool", "tool_call_update", update, sessionId);
-            const content = Array.isArray(update.content) ? update.content : [];
             for (const item of content) {
+              const itemType =
+                item && typeof item === "object"
+                  ? (item as Record<string, unknown>).type
+                  : undefined;
               this.deps.emitAcpEvent(
                 route.spaceSlug,
                 route.threadId,
@@ -287,7 +293,7 @@ export class AcpManager {
                 "tool_call_content",
                 {
                   toolCallId: update.toolCallId,
-                  itemType: item?.type,
+                  itemType,
                   item
                 },
                 sessionId
@@ -295,9 +301,13 @@ export class AcpManager {
             }
             return;
           }
-          case "plan":
+          case "plan": {
+            if (isTodoSyncedPlanMirrorPayload(update)) {
+              return;
+            }
             this.deps.emitAcpEvent(route.spaceSlug, route.threadId, "session", "plan_update", update, sessionId);
             return;
+          }
           case "available_commands_update":
             this.deps.emitAcpEvent(route.spaceSlug, route.threadId, "session", "available_commands_update", update, sessionId);
             return;
