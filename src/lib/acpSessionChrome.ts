@@ -300,10 +300,12 @@ export function deriveSessionChromeState(events: AcpTranslatedEvent[]): SessionC
     const m = asRecord(asRecord(e.data)?.models);
     if (modelSelect && typeof m?.currentModelId === "string" && m.currentModelId) {
       const id = m.currentModelId;
-      const match = modelSelect.options.find((o) => o.valueId === id);
+      const matched: ModelSelectOption | undefined = modelSelect.options.find(
+        (o) => o.valueId === id
+      );
       modelSelect = {
         name: modelSelect.name,
-        currentLabel: match?.label ?? id,
+        currentLabel: matched?.label ?? id,
         options: modelSelect.options
       };
     }

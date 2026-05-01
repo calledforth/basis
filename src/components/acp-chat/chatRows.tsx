@@ -535,28 +535,11 @@ function SingleToolRow({ row }: { row: FoldedToolRow }) {
         {links ? <div className="px-2.5 pb-1">{links}</div> : null}
         {expanded ? (
           <div className="border-t border-[var(--basis-border)]">
-            {model.uiKind === "edit" ? (
-              <div
-                className={`thin-scrollbar max-h-64 overflow-y-auto p-2.5 ${typographyMonoCaption}`}
-              >
-                {model.diffOldText ? (
-                  <div className="mb-2 whitespace-pre-wrap break-words text-rose-300/80">
-                    {model.diffOldText}
-                  </div>
-                ) : null}
-                {model.diffNewText ? (
-                  <div className="whitespace-pre-wrap break-words text-emerald-300/80">
-                    {model.diffNewText}
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <pre
-                className={`thin-scrollbar max-h-64 overflow-y-auto whitespace-pre-wrap break-words p-2.5 ${typographyMonoCaption} text-[var(--basis-text-muted)]`}
-              >
-                {model.expandedText}
-              </pre>
-            )}
+            <pre
+              className={`thin-scrollbar max-h-64 overflow-y-auto whitespace-pre-wrap break-words p-2.5 ${typographyMonoCaption} text-[var(--basis-text-muted)]`}
+            >
+              {model.expandedText}
+            </pre>
           </div>
         ) : null}
         {permission && !permissionSettled ? (

@@ -8,7 +8,11 @@ import type {
   RuntimeState,
 } from "./contracts.js";
 import { PERMISSION_REQUEST_TIMEOUT_MS } from "./contracts.js";
-import { extractSessionId, isAuthRequiredError } from "./utils.js";
+import {
+  extractSessionId,
+  isAuthRequiredError,
+  isTodoSyncedPlanMirrorPayload
+} from "./utils.js";
 
 export class AcpManager {
   private readonly useShell = process.platform === "win32";
@@ -302,7 +306,7 @@ export class AcpManager {
             return;
           }
           case "plan": {
-            if (isTodoSyncedPlanMirrorPayload(update)) {
+            if (isTodoSyncedPlanMirrorPayload(update, backend)) {
               return;
             }
             this.deps.emitAcpEvent(route.spaceSlug, route.threadId, "session", "plan_update", update, sessionId);
